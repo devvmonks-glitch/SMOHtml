@@ -92,6 +92,13 @@ const gems = [[-6, 4.0, -6], [3, 4.7, -12], [-14.3, 9.3, 4], [12, 4.8, 16.5], [-
 });
 let gemTotal = 0;
 
+// ---------- toast ----------
+const toastEl = document.getElementById('toast');
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.remove('show'); void toastEl.offsetWidth; toastEl.classList.add('show');
+}
+
 // ---------- player state ----------
 const GROUND = new Set(['ground', 'crouch', 'skid', 'gpLand', 'roll', 'diveSlide']);
 const WALL_IN = new Set(['air', 'longjump', 'backflip', 'sideflip', 'capbounce', 'gpjump']);
