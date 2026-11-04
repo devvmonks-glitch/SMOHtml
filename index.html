@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hop Lab – movement prototype</title>
+<title>Hop Lab – dev room</title>
+<meta name="description" content="A Super Mario Odyssey-style movement prototype and dev room, playable in the browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
@@ -13,10 +14,23 @@
 <canvas id="c"></canvas>
 
 <div class="hud">
-  <div class="pill" aria-live="polite"><span class="gem"></span><span id="gemCount">0 / 5</span></div>
-  <button class="pill" id="helpBtn" aria-label="Show moves">?</button>
+  <div class="hud-group">
+    <div class="pill" id="moonPill" aria-live="polite"><span class="ico moon-ico" aria-hidden="true"></span><span id="moonCount">0 / 0</span></div>
+    <div class="pill" id="coinPill"><span class="ico coin-ico" aria-hidden="true"></span><span id="coinCount">0</span></div>
+  </div>
+  <div class="hud-group">
+    <button class="pill icon" id="muteBtn" aria-label="Mute sound" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="slash" d="M16 9l6 6M22 9l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button class="pill icon" id="helpBtn" aria-label="Open menu">?</button>
+  </div>
 </div>
-<div id="toast"></div>
+<div id="timer" hidden></div>
+<div id="toast" aria-live="polite"></div>
+<div id="banner" hidden><div class="banner-kicker">You got a Moon!</div><div class="banner-name" id="bannerName"></div></div>
+<div id="prompt" hidden></div>
+<div id="lockHint" hidden>Click to steer the camera with your mouse</div>
+<div id="loading">Loading…</div>
 
 <div class="touch-ui" id="stickZone"></div>
 <div id="stick"><div id="knob"></div></div>
@@ -27,27 +41,67 @@
   <button class="btn" id="bJump">Jump</button>
 </div></div>
 
-<div id="help">
+<div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
   <div class="card">
-    <h1>Hop Lab</h1>
-    <p>Find all 5 gems. Each one needs a different move.</p>
-    <dl class="moves">
-      <dt>Jump chain</dt><dd>Jump again right as you land, while running, for a double and triple jump</dd>
-      <dt>Long jump</dt><dd>Run, hold Crouch, then Jump</dd>
-      <dt>Backflip</dt><dd>Stand still, hold Crouch, then Jump</dd>
-      <dt>Side flip</dt><dd>Run, reverse direction, Jump during the skid</dd>
-      <dt>Ground pound</dt><dd>Crouch in the air. Jump on landing to bounce high</dd>
-      <dt>Dive</dt><dd>Press Cap during a ground pound</dd>
-      <dt>Cap jump</dt><dd>Throw your cap, then jump or dive into it</dd>
-      <dt>Wall jump</dt><dd>Fall against a wall, then Jump</dd>
-      <dt>Roll</dt><dd>Hold Crouch and press Cap. Press Cap again to speed up</dd>
-    </dl>
-    <p class="keys">Keyboard: WASD to move, Space to jump, Shift to crouch, E for cap, R to restart. Drag the screen to turn the camera.</p>
+    <div class="card-head"><h1 id="helpTitle">Hop Lab</h1><span class="tag">dev room</span></div>
+    <p class="sub">A movement test room. Every station hides a Power Moon that needs a different move, object or capture.</p>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="moves" aria-selected="true">Moves</button>
+      <button role="tab" data-tab="things" aria-selected="false">Objects</button>
+      <button role="tab" data-tab="controls" aria-selected="false">Controls</button>
+      <button role="tab" data-tab="warp" aria-selected="false">Warp</button>
+    </div>
+    <section data-panel="moves">
+      <dl class="moves">
+        <dt>Jump chain</dt><dd>Jump again right as you land, while running, for a double and triple jump</dd>
+        <dt>Long jump</dt><dd>Run, hold Crouch, then Jump</dd>
+        <dt>Backflip</dt><dd>Stand still, hold Crouch, then Jump</dd>
+        <dt>Side flip</dt><dd>Run, reverse direction, Jump during the skid</dd>
+        <dt>Ground pound</dt><dd>Crouch in the air. Jump on landing to bounce high</dd>
+        <dt>Dive</dt><dd>Press Cap during a ground pound. Jump on landing to roll out</dd>
+        <dt>Cap jump</dt><dd>Throw your cap, then jump or dive into it. Hold Cap to keep it hovering</dd>
+        <dt>Wall jump</dt><dd>Fall against a wall while holding toward it, then Jump</dd>
+        <dt>Ledge grab</dt><dd>Jump at a ledge and hold toward it. Jump to climb, move to shimmy</dd>
+        <dt>Roll</dt><dd>Hold Crouch and press Cap. Press Cap again to speed up, faster downhill</dd>
+      </dl>
+    </section>
+    <section data-panel="things" hidden>
+      <dl class="moves">
+        <dt>Captures</dt><dd>Hit a frog, Goomba or spark pylon with your cap to take control. Crouch to let go</dd>
+        <dt>Frog</dt><dd>Hops around and jumps far higher than you can</dd>
+        <dt>Goomba</dt><dd>Land on other Goombas to stack them into a tower</dd>
+        <dt>Spark pylon</dt><dd>Zips you along its wire to the other end</dd>
+        <dt>Jump flower</dt><dd>Land on it to launch. Jump or pound as you land for extra height</dd>
+        <dt>Blocks</dt><dd>Hit ? blocks from below. Bricks break from below or with a ground pound</dd>
+        <dt>Post</dt><dd>Ground pound it into the floor</dd>
+        <dt>P switch</dt><dd>Step on it for a short-lived staircase</dd>
+        <dt>Pipes</dt><dd>Stand on one and Crouch to warp</dd>
+        <dt>Checkpoints</dt><dd>Touch a flag to respawn there with R</dd>
+      </dl>
+    </section>
+    <section data-panel="controls" hidden>
+      <table class="ctl">
+        <thead><tr><th></th><th>Keyboard</th><th>Gamepad</th></tr></thead>
+        <tbody>
+          <tr><td>Move</td><td>WASD / arrows</td><td>Left stick</td></tr>
+          <tr><td>Camera</td><td>Mouse (click to lock)</td><td>Right stick</td></tr>
+          <tr><td>Jump</td><td>Space</td><td>A / B</td></tr>
+          <tr><td>Crouch</td><td>Shift or C</td><td>Bumpers / triggers</td></tr>
+          <tr><td>Cap</td><td>E, F, J or click</td><td>X / Y</td></tr>
+          <tr><td>Restart</td><td>R</td><td>Select</td></tr>
+          <tr><td>Menu</td><td>H or Esc</td><td>Start</td></tr>
+          <tr><td>Mute</td><td>M</td><td></td></tr>
+        </tbody>
+      </table>
+      <p class="keys">On touch screens, drag on the left to move and on the right to turn the camera.</p>
+    </section>
+    <section data-panel="warp" hidden>
+      <div class="warps" id="warpList"></div>
+    </section>
     <button id="play">Play</button>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

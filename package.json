@@ -1,0 +1,17 @@
+{
+  "name": "smohtml",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Super Mario Odyssey-style movement prototype and dev room in three.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --target=es2020 --minify --sourcemap --outfile=game.js",
+    "watch": "esbuild src/main.js --bundle --format=iife --target=es2020 --sourcemap --outfile=game.js --watch"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  }
+}

@@ -15,3 +15,6 @@ node_modules/
 # Release builds
 dist/
 *.zip
+
+# Build output
+game.js.map
