@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=0.2.1">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -102,6 +102,26 @@
   </div>
 </div>
 
-<script src="game.js"></script>
+<script>
+// If the game can't start (an old cached game.js, no WebGL 2, a script error), say so instead of hanging on "Loading…".
+(function () {
+  function show(msg) {
+    var el = document.getElementById('loading');
+    if (!el) return;
+    el.classList.add('failed');
+    el.innerHTML = '<div><p class="fail-title">Hop Lab couldn’t start</p><p class="fail-msg"></p>' +
+      '<p class="fail-hint">Try a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac). If that doesn’t help, ' +
+      'your browser may not support WebGL 2.</p></div>';
+    el.querySelector('.fail-msg').textContent = msg;
+  }
+  window.hoplabFail = show;
+  addEventListener('error', function (e) { if (document.getElementById('loading')) show(e.message || 'Script error'); });
+  setTimeout(function () {
+    var el = document.getElementById('loading');
+    if (el && !el.classList.contains('failed')) show('The game is taking too long to load.');
+  }, 12000);
+})();
+</script>
+<script src="game.js?v=0.2.1"></script>
 </body>
 </html>

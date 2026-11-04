@@ -57,6 +57,11 @@ body.touch #prompt{bottom:auto;top:calc(66px + env(safe-area-inset-top,0px))}
   color:#fff;font:600 15px Fredoka,ui-rounded,system-ui,sans-serif;text-shadow:0 1px 0 #1d2a44;pointer-events:none}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:var(--sky);
   color:#1d2a44;font:700 28px Fredoka,ui-rounded,system-ui,sans-serif}
+#loading.failed{padding:24px;text-align:center}
+#loading.failed > div{max-width:440px}
+#loading .fail-title{margin:0 0 8px;font-size:26px}
+#loading .fail-msg{margin:0 0 12px;font:500 15px/1.4 ui-monospace,Consolas,monospace;opacity:.8;word-break:break-word}
+#loading .fail-hint{margin:0;font:500 16px/1.4 Fredoka,ui-rounded,system-ui,sans-serif}
 [hidden]{display:none !important}
 
 /* ---------- touch ---------- */
