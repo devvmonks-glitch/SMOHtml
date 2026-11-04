@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hop Lab – movement prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud">
+  <div class="pill" aria-live="polite"><span class="gem"></span><span id="gemCount">0 / 5</span></div>
+  <button class="pill" id="helpBtn" aria-label="Show moves">?</button>
+</div>
+<div id="toast"></div>
+
+<div class="touch-ui" id="stickZone"></div>
+<div id="stick"><div id="knob"></div></div>
+<div class="touch-ui" id="stickHint">Drag to move</div>
+<div class="touch-ui" id="btns"><div class="pad">
+  <button class="btn" id="bCap">Cap</button>
+  <button class="btn" id="bCrouch">Crouch</button>
+  <button class="btn" id="bJump">Jump</button>
+</div></div>
+
+<div id="help">
+  <div class="card">
+    <h1>Hop Lab</h1>
+    <p>Find all 5 gems. Each one needs a different move.</p>
+    <dl class="moves">
+      <dt>Jump chain</dt><dd>Jump again right as you land, while running, for a double and triple jump</dd>
+      <dt>Long jump</dt><dd>Run, hold Crouch, then Jump</dd>
+      <dt>Backflip</dt><dd>Stand still, hold Crouch, then Jump</dd>
+      <dt>Side flip</dt><dd>Run, reverse direction, Jump during the skid</dd>
+      <dt>Ground pound</dt><dd>Crouch in the air. Jump on landing to bounce high</dd>
+      <dt>Dive</dt><dd>Press Cap during a ground pound</dd>
+      <dt>Cap jump</dt><dd>Throw your cap, then jump or dive into it</dd>
+      <dt>Wall jump</dt><dd>Fall against a wall, then Jump</dd>
+      <dt>Roll</dt><dd>Hold Crouch and press Cap. Press Cap again to speed up</dd>
+    </dl>
+    <p class="keys">Keyboard: WASD to move, Space to jump, Shift to crouch, E for cap, R to restart. Drag the screen to turn the camera.</p>
+    <button id="play">Play</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
