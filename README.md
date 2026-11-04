@@ -4,7 +4,7 @@ A small browser prototype of Super Mario Odyssey–style 3D platforming movement
 
 You play a little round character with a throwable cap in a sandbox course. There are 5 gems to collect, and each one needs a different move to reach.
 
-**Play it in your browser:** https://&lt;your-github-username&gt;.github.io/SMOHtml/
+**Play it in your browser:** https://devvmonks-glitch.github.io/SMOHtml/
 
 ## Controls
 
@@ -51,7 +51,7 @@ Any static server works, for example `npx serve`.
 
 ## Download
 
-Every [release](../../releases) has a zip of the game attached. Unzip it and open `index.html`.
+Every [release](https://github.com/devvmonks-glitch/SMOHtml/releases) has a zip of the game attached. Unzip it and open `index.html`.
 
 ## Project layout
 
