@@ -19,7 +19,8 @@ import { save, setting, setSetting } from './save.js';
 import { updateMusic, setMusic, musicOn } from './music.js';
 import { createTrials } from './trial.js';
 import { createFlat } from './flat.js';
-import { buildKingdom, KX, KINGDOM } from './kingdom.js';
+import { buildKingdom } from './kingdom.js';
+import { buildDesert } from './desert.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -59,7 +60,7 @@ async function start() {
 
   const G = {
     scene, world: new World(), fx: new FX(scene), sfx, hud: createHud(), objects: [], captures: [], moons: [], checkpoints: [],
-    spawn: SPAWN, spawnFlag: null, coins: 0, moonsGot: 0, time: 0, paused: true, W: null, coinList: [], zones: [], low,
+    spawn: SPAWN, spawnFlag: null, coins: 0, moonsGot: 0, time: 0, paused: true, W: null, coinList: [], zones: [], low, kingdoms: [],
   };
   G.input = createInput(G, canvas, onPress);
   G.P = createPlayer(SPAWN.pos, SPAWN.facing);
@@ -86,6 +87,7 @@ async function start() {
   buildLevel(G);
   G.flat = createFlat(G);
   buildKingdom(G);
+  buildDesert(G);
   const prints = new Footprints(G);
   G.trials = createTrials(G);
   paintScene(scene);
@@ -189,7 +191,7 @@ async function start() {
   const moonList = document.getElementById('moonList');
   function refreshMoons() {
     moonList.innerHTML = '';
-    for (const place of ['Hop Lab', KINGDOM]) {
+    for (const place of ['Hop Lab', ...G.kingdoms.map((k) => k.name)]) {
       const list = G.moons.filter((m) => (m.kingdom || 'Hop Lab') === place);
       const head = document.createElement('li'); head.className = 'head';
       head.textContent = `${place} · ${list.filter((m) => m.got).length} / ${list.length}`;
@@ -233,6 +235,8 @@ async function start() {
   // ---------- loop ----------
   const P = G.P;
   let last = performance.now(), dustT = 0;
+  const HAZE = scene.fog.color.clone();
+  const kingdomAt = (x) => G.kingdoms.find((k) => Math.abs(x - k.x) < 150) || null;
   function computeW() {
     const inp = G.input.st, yaw = G.camRig.yaw;
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
@@ -309,16 +313,18 @@ async function start() {
     rim.position.set(t.x - 18, t.y + 14, t.z - 22); rim.target.position.copy(t);
     G.hud.prompt(G.paused ? '' : prompt());
     // Which place you're in: the music changes, and arriving shows a title card.
-    const region = P.pos.x > KX - 100 ? KINGDOM : 'Hop Lab';
+    const kingdom = kingdomAt(P.pos.x), region = kingdom ? kingdom.name : 'Hop Lab';
     if (region !== G.region) {
       if (G.region) {
         const list = G.moons.filter((m) => (m.kingdom || 'Hop Lab') === region), got = list.filter((m) => m.got).length;
-        G.hud.kingdom(region === KINGDOM ? 'Kingdom of' : 'Back to the', region === KINGDOM ? 'Tumble Falls' : 'Hop Lab', `${got} of ${list.length} Power Moons`);
+        G.hud.kingdom(kingdom ? 'Kingdom of' : 'Back to the', region, `${got} of ${list.length} Power Moons`);
       }
       G.region = region;
       // Falling or pressing R brings you back somewhere in the place you're in.
-      if ((G.spawn.pos.x > KX - 100) !== (region === KINGDOM)) { G.spawn = region === KINGDOM ? G.fallsSpawn : SPAWN; G.spawnFlag = null; }
+      if (kingdomAt(G.spawn.pos.x) !== kingdom) { G.spawn = kingdom ? kingdom.spawn : SPAWN; G.spawnFlag = null; }
     }
+    // Each place has its own haze.
+    scene.fog.color.lerp(kingdom && kingdom.fog ? kingdom.fog : HAZE, Math.min(1, dt * 2));
     updateMusic(G, dt);
     // Falling off the sky island puts you back on it rather than dropping you into the room.
     if (!G.paused && P.pos.z < -100 && P.pos.y < 28) G.player.respawn(G.spawnFlag && G.spawnFlag.island ? G.spawn : G.islandStart);

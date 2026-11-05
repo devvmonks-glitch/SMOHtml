@@ -1,6 +1,6 @@
 # SMOHtml — Hop Lab
 
-A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 19 stations on paved pads among grass, trees and stone walls, plus a short course on a sky island. Each station shows off one move, object or capture, and each one hides a Power Moon. A pipe in the plaza leads to **Tumble Falls**, a small kingdom with 12 more moons to find.
+A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 19 stations on paved pads among grass, trees and stone walls, plus a short course on a sky island. Each station shows off one move, object or capture, and each one hides a Power Moon. Two pipes in the plaza lead to small kingdoms, **Tumble Falls** and **Sundial Sands**, each with 12 more moons to find.
 
 **Play it in your browser:** https://devvmonks-glitch.github.io/SMOHtml/
 
@@ -40,6 +40,16 @@ A small kingdom in the spirit of SMO's first one: a grassy valley under a tall w
 - in a cave sealed by a boulder (the Chain Chomp can help), on a Goomba picnic ledge, inside some ruined bricks, under an old post in the flowers, and across a long jump off the east edge
 
 The Moons and Warp tabs list Tumble Falls separately, and its warps have time trials like the dev room's.
+
+## Sundial Sands
+
+A desert canyon ringed by red mesas, with a stepped sandstone pyramid in the middle. The pipe beside the plaza's Sundial Sands sign takes you there and back. Its 12 moons:
+
+- on top of the great pyramid (a Grand Moon: grab each ledge, then take the spring), and at the end of a passage into its base
+- across the sinkhole of sinking sand, by moving platform or by a P switch bridge that lasts 5 seconds
+- up the sundial's gnomon (a wall-jump chimney), on a ledge only a spring reaches, and on the obelisk (backflip)
+- at the top of a spark pylon ride, across three mesas (long jumps), and at the bottom of the oasis
+- inside a tomb sealed by a boulder (the Chain Chomp again), and wherever X marks the spot
 
 Checkpoint flags are scattered around: touch one (or hit it with your cap) and **R** respawns you there. The menu's **Warp** tab jumps straight to any station.
 
@@ -157,7 +167,9 @@ src/fx.js         particles and shockwave rings
 src/paint.js      painterly shading, painted sky and paper grain
 src/decor.js      trees, bushes, flowers, rocks, lamps, fences, hills, grass tufts and footprints
 src/flat.js       the 8-bit wall section
-src/kingdom.js    Tumble Falls: terrain, rocky cliffs, waterfalls and its moons
+src/terrain.js    shared kingdom terrain: rocky cliffs, water and waterfalls
+src/kingdom.js    Tumble Falls and its moons
+src/desert.js     Sundial Sands and its moons
 src/trial.js      time trials and ghost replays
 src/music.js      the synthesised soundtrack
 src/save.js       saved progress and settings

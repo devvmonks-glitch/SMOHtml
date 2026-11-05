@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { std } from './character.js';
-import { TAU } from './util.js';
+import { PI, TAU } from './util.js';
 
 // Set dressing that turns the test room into a garden: trees, bushes, flowers, rocks,
 // lamps, a fence round the Goomba pen and hills beyond the walls. Everything here is
@@ -77,6 +77,43 @@ export function fence(G, x0, z0, x1, z1) {
     const rail = add(G, new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, len), fenceMat));
     rail.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); rail.rotation.y = a;
   }
+}
+
+// Desert plants: a saguaro-ish cactus with a couple of arms, and a leaning palm.
+const cactusMat = std(0x5f9f58, { roughness: 0.8 }), cactusRib = std(0x4c8a48, { roughness: 0.85 });
+export function cactus(G, x, z, s = 1, y = 0) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rnd(0, TAU); G.scene.add(g);
+  const h = 2.6 * s * rnd(0.85, 1.15), r = 0.32 * s;
+  const trunk = new THREE.Mesh(new THREE.CapsuleGeometry(r, h - r * 2, 4, 12), cactusMat); trunk.position.y = h / 2; trunk.castShadow = true; g.add(trunk);
+  for (let i = 0; i < 2; i++) {
+    const side = i ? -1 : 1, ay = h * rnd(0.4, 0.6), len = h * rnd(0.3, 0.42), ar = r * 0.7;
+    const out = new THREE.Mesh(new THREE.CapsuleGeometry(ar, 0.35 * s, 4, 10), cactusRib);
+    out.rotation.z = PI / 2; out.position.set(side * (r + 0.25 * s), ay, 0); out.castShadow = true; g.add(out);
+    const up = new THREE.Mesh(new THREE.CapsuleGeometry(ar, len, 4, 10), cactusMat);
+    up.position.set(side * (r + 0.5 * s), ay + len / 2, 0); up.castShadow = true; g.add(up);
+  }
+  G.world.cyl(x, z, r + 0.1, y, y + h, { noLedge: true });
+}
+const palmLeaf = std(0x6cae4a, { roughness: 0.85 }); palmLeaf.userData.wind = 0.05;
+const palmBark = std(0xa47a4d, { roughness: 0.95 });
+export function palm(G, x, z, s = 1, y = 0) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rnd(0, TAU); G.scene.add(g);
+  const h = 4.6 * s, lean = rnd(0.12, 0.25);
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, h * 0.55, 0), new THREE.Vector3(h * lean, h, 0));
+  const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.2 * s, 8), palmBark); trunk.castShadow = true; g.add(trunk);
+  const top = curve.getPoint(1);
+  const leafGeo = new THREE.SphereGeometry(1, 10, 6); leafGeo.scale(1.25 * s, 0.1 * s, 0.38 * s); leafGeo.translate(1.15 * s, 0, 0);
+  for (let i = 0; i < 7; i++) {
+    const leaf = new THREE.Mesh(leafGeo, palmLeaf); leaf.position.copy(top);
+    leaf.rotation.set(0, i / 7 * TAU + rnd(-0.2, 0.2), -rnd(0.25, 0.55)); leaf.castShadow = true; g.add(leaf);
+  }
+  G.world.cyl(x, z, 0.3 * s, y, y + h, { noLedge: true });
+}
+// Low sand dunes: squashed mounds that sit just above the floor (looks only).
+const duneMat = new THREE.MeshStandardMaterial({ color: 0xf0d6a2, roughness: 1 });
+export function dune(G, x, z, sx, sz, h, y = 0) {
+  const m = add(G, new THREE.Mesh(blob, duneMat), false);
+  m.position.set(x, y - h * 0.15, z); m.scale.set(sx, h, sz); m.rotation.y = rnd(0, TAU);
 }
 
 // Grass tufts: three crossed blades, instanced wherever place() finds open grass

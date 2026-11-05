@@ -6,7 +6,12 @@ export const STEP = 0.42;   // ledges this high are stepped onto automatically
 export const SNAP = 0.45;   // how far down we stick to the ground when walking off slopes/steps
 
 export class World {
-  constructor() { this.solids = []; this.ramps = []; this.waters = []; }
+  constructor() { this.solids = []; this.ramps = []; this.waters = []; this.camBlocks = []; }
+
+  // Stops only the camera, e.g. a waterfall it shouldn't sit behind.
+  camBlock(x0, x1, y0, y1, z0, z1) {
+    this.camBlocks.push({ type: 'box', on: true, min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 } });
+  }
 
   // A box of water; `surface` is its top.
   water(x0, x1, y0, y1, z0, z1) {
@@ -175,7 +180,7 @@ export function moveBody(b, world, h, wasGround) {
 // Distance along a ray to the first solid (used to keep the camera out of walls).
 export function rayCast(world, o, d, max) {
   let best = max;
-  for (const s of world.solids) {
+  for (const list of [world.solids, world.camBlocks]) for (const s of list) {
     if (!s.on || s.noCam) continue;
     let t0 = 0, t1 = best, hit = true;
     for (const a of ['x', 'y', 'z']) {

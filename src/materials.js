@@ -116,6 +116,34 @@ const PAINT = {
     g.fillStyle = '#efe6d6'; g.fillRect(0, 0, S, S);
     strokes(g, 400, S, ['#e3d8c4', '#f7f0e2', '#d8ccb6'], 26, 10, rnd, 0.35);
   },
+  sand(g, S, rnd) {
+    g.fillStyle = '#ecd2a0'; g.fillRect(0, 0, S, S);
+    // Wind ripples: long, gently curved bands of light and shade.
+    g.lineCap = 'round';
+    for (let i = 0; i < 9; i++) {
+      const y0 = (i + rnd() * 0.5) * S / 9;
+      for (const [c, w, dy] of [['rgba(196,154,98,0.35)', 5, 2.5], ['rgba(255,240,205,0.55)', 3, -1.5]]) {
+        g.strokeStyle = c; g.lineWidth = w; g.beginPath();
+        for (let x = -4; x <= S + 4; x += 8) { const y = y0 + dy + Math.sin((x / S) * Math.PI * 2 + i) * 5; if (x < 0) g.moveTo(x, y); else g.lineTo(x, y); }
+        g.stroke();
+      }
+    }
+    strokes(g, 500, S, ['#e2c28c', '#f5e0b6', '#d8b47c', '#f9ebcb'], 6, 3, rnd, 0.35);
+  },
+  sandstone(g, S, rnd) {
+    g.fillStyle = '#c99a62'; g.fillRect(0, 0, S, S);
+    // Big dressed blocks in staggered courses.
+    const rows = 3;
+    for (let r = 0; r < rows; r++) {
+      const y = r * S / rows, h = S / rows;
+      for (let c = -1; c < 3; c++) {
+        const x = c * S / 2 + (r % 2 ? S / 4 : 0), v = rnd() * 22;
+        g.fillStyle = `rgb(${232 + v * 0.5},${196 + v},${146 + v})`;
+        roundRect(g, x + 3, y + 3, S / 2 - 6, h - 6, 6); g.fill();
+      }
+    }
+    strokes(g, 320, S, ['#d9ae74', '#f6dcae', '#c9965c', '#fbe9c8'], 10, 4, rnd, 0.3);
+  },
   dirt(g, S, rnd) {
     g.fillStyle = '#9a7652'; g.fillRect(0, 0, S, S);
     strokes(g, 500, S, ['#876443', '#ad8a62', '#7a5a3c', '#b99a72'], 12, 6, rnd, 0.5);

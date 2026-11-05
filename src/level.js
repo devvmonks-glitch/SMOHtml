@@ -8,6 +8,7 @@ import { Frog, Goomba, Goombette, Pylon, ChainChomp, wireMesh } from './captures
 export const C = {
   floor: 0xc9ced6, wall: 0xe8ebf0, white: 0xf4f1ea, orange: 0xff9a52, yellow: 0xffd166, pink: 0xff7fb4,
   purple: 0xa78bfa, blue: 0x7fc4ff, green: 0x8fdc7a, teal: 0x5fd3c4, red: 0xff6b6b, grey: 0xaab2c0,
+  sand: 0xffe7bd, pale: 0xfff3dc, // sandstone, for Sundial Sands
 };
 export const MOON = { gold: 0xffd23f, cyan: 0x5fe0ff, pink: 0xff7fc8, orange: 0xffa03f, green: 0x7dff8a, purple: 0xc49bff, red: 0xff6b6b };
 
@@ -17,6 +18,7 @@ const LOOK = {
   [C.orange]: ['grass', 'brick'], [C.yellow]: ['wood', 'wood', 0xffe6b0], [C.pink]: ['grass', 'plaster', 0xffc6d6],
   [C.purple]: ['stone', 'stone', 0xd4c2f0], [C.blue]: ['wood', 'wood', 0xa9cdf0], [C.green]: ['grass', 'dirt'],
   [C.teal]: ['grass', 'stone', 0xb4e0d6], [C.red]: ['brick', 'brick'], [C.grey]: ['stone', 'stone'],
+  [C.sand]: ['sandstone', 'sandstone'], [C.pale]: ['sandstone', 'sandstone', 0xfff2dc],
 };
 
 // A solid block of painted grass, stone, brick, wood or plaster. y0 is the bottom.
@@ -266,6 +268,10 @@ export function buildLevel(G) {
   G.fallsPipe = new Pipe(G, 3.5, 0, 17, 1.3);
   G.fallsPipe.facing = PI; G.fallsPipe.onArrive = (G2) => { G2.spawn = { pos: new THREE.Vector3(3.5, 0, 14.5), facing: PI }; G2.spawnFlag = null; };
   new Sign(G, 6.8, 0, 15.6, PI + PI / 6, 'TUMBLE FALLS', ['A whole kingdom of waterfalls', 'and 12 Power Moons. Hop in!'], '#5fd3c4');
+  // And the pipe to Sundial Sands (linked up in desert.js).
+  G.desertPipe = new Pipe(G, -6.5, 0, 17.5, 1.3);
+  G.desertPipe.facing = PI; G.desertPipe.onArrive = (G2) => { G2.spawn = { pos: new THREE.Vector3(-6.5, 0, 15), facing: PI }; G2.spawnFlag = null; };
+  new Sign(G, -9.6, 0, 18.9, PI - PI / 6, 'SUNDIAL SANDS', ['A desert kingdom with a great', 'pyramid and 12 Power Moons.'], '#f0b35a');
   const skyFlag = new Checkpoint(G, 3.5, Y, -116, 'Sky Island', PI);
   skyFlag.island = true;
   new Sign(G, -3.5, Y, -116.5, 0, 'SKY ISLAND', ['A real course: use everything', 'you learned. Grand Moon ahead!'], '#ffd166');
