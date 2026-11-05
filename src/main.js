@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PI } from './util.js';
 import { World, groundBelow } from './world.js';
 import { FX } from './fx.js';
@@ -13,7 +17,7 @@ import { CameraRig } from './camera.js';
 import { PopCoins } from './objects.js';
 import { buildLevel } from './level.js';
 import { canvasTex } from './materials.js';
-import { loadModels } from './models.js';
+import { loadModels, loadedParts } from './models.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -25,7 +29,10 @@ async function start() {
 
   const canvas = document.getElementById('c');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // High quality (ambient occlusion) on desktop; ?lq turns it off.
+  const params = new URLSearchParams(location.search);
+  const hq = !params.has('lq') && !matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, hq ? 1.5 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -44,7 +51,21 @@ async function start() {
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
   Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 120 });
   scene.add(sun, sun.target);
+  // A cool light from behind picks out silhouettes so characters don't melt into the floor.
+  const rim = new THREE.DirectionalLight(0xbfe0ff, 1.1);
+  scene.add(rim, rim.target);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 400);
+  let composer = null, ao = null;
+  if (hq) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    ao = new GTAOPass(scene, camera, 1, 1);
+    ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1.2, scale: 1.1 });
+    ao.blendIntensity = 0.9;
+    composer.addPass(ao);
+    composer.addPass(new OutputPass());
+  }
+  const draw = () => (composer ? composer.render() : renderer.render(scene, camera));
 
   const G = {
     scene, world: new World(), fx: new FX(scene), sfx, hud: createHud(), objects: [], captures: [], moons: [], checkpoints: [],
@@ -118,6 +139,7 @@ async function start() {
   function resize() {
     const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
   }
   addEventListener('resize', resize); resize();
 
@@ -184,8 +206,9 @@ async function start() {
     G.camRig.update(dt, now);
     const t = G.camRig.target;
     sun.position.set(Math.round(t.x) + 20, t.y + 36, Math.round(t.z) + 12); sun.target.position.set(Math.round(t.x), t.y, Math.round(t.z));
+    rim.position.set(t.x - 18, t.y + 14, t.z - 22); rim.target.position.copy(t);
     G.hud.prompt(G.paused ? '' : prompt());
-    renderer.render(scene, camera);
+    draw();
   }
   G.camRig.snap(SPAWN.facing + PI);
   document.getElementById('loading').remove();
@@ -193,7 +216,8 @@ async function start() {
   requestAnimationFrame(frame);
   if (new URLSearchParams(location.search).has('debug')) {
     // Debug hook used for automated playtesting: ?debug exposes the game context.
-    G.renderNow = (dt = 1 / 60) => { G.char.animate(P, dt, G.time, G.camRig.yaw); G.camRig.update(dt, performance.now()); renderer.render(scene, camera); };
+    G.renderNow = (dt = 1 / 60) => { G.char.animate(P, dt, G.time, G.camRig.yaw); G.camRig.update(dt, performance.now()); draw(); };
+    G.parts = loadedParts; G.passes = { ao, composer };
     window.HL = G;
   }
 }

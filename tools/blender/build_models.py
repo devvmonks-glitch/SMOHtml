@@ -221,95 +221,256 @@ class Part:
 
 
 # ---------- the player character ----------
-def eye_shapes(p, at=(0, 0, 0), white_r=0.1, iris=True, rot=(0, 0, 0)):
+def lid_cap(r, cut):
+    """The top of a sphere above y = cut * r: used for eyelids."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=16, radius=r)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.y < cut * r], context='VERTS')
+    return mesh_from_bm(bm)
+
+
+def eye_shapes(p, at=(0, 0, 0), white_r=0.1, iris=True, rot=(0, 0, 0), lid=None, lid_cut=0.35):
     base = xf(at, rot)
     p.add(sphere(white_r, 24, 16), WHITE(), base @ xf(s=(0.8, 1.3, 0.55)))
     if iris:
-        p.add(sphere(white_r * 0.6, 20, 14), IRIS(), base @ xf((0, -0.006, white_r * 0.36), s=(0.85, 1.25, 0.45)))
-    p.add(sphere(white_r * 0.36, 16, 12), INK(), base @ xf((0, -0.008, white_r * 0.5), s=(0.85, 1.25, 0.45)))
-    p.add(sphere(white_r * 0.15, 10, 8), GLINT(), base @ xf((white_r * 0.15, white_r * 0.38, white_r * 0.58)))
+        p.add(sphere(white_r * 0.62, 20, 14), IRIS(), base @ xf((0, -0.01, white_r * 0.36), s=(0.85, 1.22, 0.45)))
+    p.add(sphere(white_r * 0.38, 16, 12), INK(), base @ xf((0, -0.012, white_r * 0.5), s=(0.85, 1.22, 0.45)))
+    p.add(sphere(white_r * 0.15, 10, 8), GLINT(), base @ xf((white_r * 0.16, white_r * 0.34, white_r * 0.6)))
+    if lid is not None:
+        # A heavy upper lid gives the face a look instead of a blank stare.
+        p.add(lid_cap(white_r * 1.07, lid_cut), lid, base @ xf((0, 0, 0.004), (0.12, 0, 0), s=(0.8, 1.3, 0.58)))
+
+
+# ---------- the hero: one skinned body on a skeleton ----------
+def bm_append(bm, me, m):
+    tmp = bmesh.new()
+    tmp.from_mesh(me)
+    bmesh.ops.transform(tmp, matrix=m, verts=tmp.verts)
+    out = bpy.data.meshes.new('tmp')
+    tmp.to_mesh(out)
+    tmp.free()
+    bm.from_mesh(out)
+    bpy.data.meshes.remove(out)
+
+
+def evaluated(me, mods):
+    """Run a mesh through a list of (type, settings) modifiers and return the result."""
+    ob = bpy.data.objects.new('tmp', me)
+    scene.collection.objects.link(ob)
+    for kind, opts in mods:
+        mod = ob.modifiers.new(kind, kind)
+        for k, v in opts.items():
+            setattr(mod, k, v)
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    out = bpy.data.meshes.new_from_object(ev)
+    bpy.data.objects.remove(ob)
+    return out
+
+
+def seg_dist(p, a, b):
+    ab = b - a
+    t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+    return (a + ab * t - p).length
+
+
+AX = 0.34  # shoulder / arm x offset
+
+
+def build_hero():
+    """A single smooth body skinned to the same joints src/character.js animates."""
+    V = Vector
+    bones = [('hips', (0, .69, 0), (0, .82, 0), None), ('spine', (0, .69, 0), (0, 1.19, 0), 'hips'),
+             ('neck', (0, 1.19, 0), (0, 1.5, 0), 'spine')]  # not 'head': that name is the head model
+    for sx, n in ((1, 'L'), (-1, 'R')):
+        # Arms sit a little wide of the torso so the skin only joins at the shoulder.
+        bones += [('shoulder' + n, (sx * AX, 1.09, 0), (sx * AX, .86, 0), 'spine'),
+                  ('elbow' + n, (sx * AX, .86, 0), (sx * AX, .64, 0), 'shoulder' + n),
+                  ('thigh' + n, (sx * .13, .66, 0), (sx * .13, .38, 0), 'hips'),
+                  ('knee' + n, (sx * .13, .38, 0), (sx * .13, .11, 0), 'thigh' + n),
+                  ('foot' + n, (sx * .13, .11, 0), (sx * .13, .06, .2), 'knee' + n)]
+    arm = bpy.data.armatures.new('heroRig')
+    rig = bpy.data.objects.new('heroRig', arm)
+    scene.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    rig.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    for name, h, t, par in bones:
+        b = arm.edit_bones.new(name)
+        b.head = (TO_BLENDER @ V(h).to_4d()).to_3d()
+        b.tail = (TO_BLENDER @ V(t).to_4d()).to_3d()
+        b.use_connect = False
+        if par:
+            b.parent = arm.edit_bones[par]
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # Skin: overlapping shapes fused by a voxel remesh, smoothed, then reduced.
+    bm = bmesh.new()
+    bm_append(bm, sphere(1, 32, 20), xf((0, .93, 0), s=(.235, .25, .21)))
+    bm_append(bm, sphere(1, 32, 20), xf((0, .81, .02), s=(.24, .2, .225)))
+    bm_append(bm, sphere(1, 32, 20), xf((0, .67, 0), s=(.23, .15, .2)))
+    bm_append(bm, capsule(.085, .08), xf((0, 1.22, 0)))
+    for sx in (1, -1):
+        bm_append(bm, sphere(.09, 20, 14), xf((sx * (AX - .02), 1.065, 0)))
+        bm_append(bm, capsule(.074, .2), xf((sx * AX, 1.07, 0)))
+        bm_append(bm, capsule(.067, .16), xf((sx * AX, .86, 0)))
+        bm_append(bm, capsule(.095, .25), xf((sx * .13, .66, 0)))
+        bm_append(bm, capsule(.082, .24), xf((sx * .13, .39, 0)))
+    raw = bpy.data.meshes.new('raw')
+    bm.to_mesh(raw)
+    bm.free()
+    fused = evaluated(raw, [('REMESH', {'mode': 'VOXEL', 'voxel_size': 0.011}), ('SMOOTH', {'factor': 0.6, 'iterations': 4})])
+    skin = evaluated(fused, [('DECIMATE', {'ratio': min(1.0, 7000 / max(1, len(fused.polygons)))})])
+
+    bm = bmesh.new()
+    bm.from_mesh(skin)
+    # Clean cuts where the shorts start and end, so the colour edges are straight.
+    for y in (0.775, 0.53):
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, y, 0), plane_no=(0, 1, 0))
+    mats = [SUIT(), SHORTS(), BELLY(), GLOVE(), SHOE(), SOLE(), mat('belt', 0x1f2d55, 0.5), GOLD()]
+    for f in bm.faces:
+        c = f.calc_center_median()
+        f.material_index = 1 if (0.53 < c.y < 0.775 and abs(c.x) < 0.25) else 0
+        f.smooth = True
+    body_count = len(bm.verts)
+
+    rigid = []  # (first vertex, last vertex, bone)
+
+    def piece(me, material, m, bone):
+        first = len(bm.verts)
+        idx = mats.index(material)
+        tmp = bmesh.new()
+        tmp.from_mesh(me)
+        bmesh.ops.transform(tmp, matrix=m, verts=tmp.verts)
+        for f in tmp.faces:
+            f.material_index = idx
+            f.smooth = True
+        out = bpy.data.meshes.new('tmp')
+        tmp.to_mesh(out)
+        tmp.free()
+        bm.from_mesh(out)
+        bpy.data.meshes.remove(out)
+        bm.verts.ensure_lookup_table()
+        rigid.append((first, len(bm.verts), bone))
+
+    piece(sphere(.2, 28, 18), BELLY(), xf((0, .95, .115), s=(1, 1.1, .55)), 'spine')
+    piece(ring(.12, 1.135, .03, 32, 10), GLOVE(), xf(s=(1, 1, .9)), 'spine')
+    piece(ring(.25, .775, .03, 44, 10), mats[6], xf(s=(1, 1, .9)), 'hips')
+    piece(roundbox(.1, .075, .04), GOLD(), xf((0, .775, .235)), 'hips')
+    for sx, n in ((1, 'L'), (-1, 'R')):
+        x = sx * AX
+        piece(sphere(.105, 24, 16), GLOVE(), xf((x, .645, .01), s=(.92, 1.05, .86)), 'elbow' + n)
+        piece(lathe([(.07, .745), (.095, .74), (.102, .7), (.082, .695)], 28, closed=True), GLOVE(), xf((x, 0, 0)), 'elbow' + n)
+        piece(capsule(.036, .05, 14, 4), GLOVE(), xf((x - sx * .02, .71, .07), (-.9, 0, 0)), 'elbow' + n)
+        for dx in (-.05, 0, .05):
+            piece(sphere(.043, 14, 10), GLOVE(), xf((x + dx, .568, .045), s=(1, 1.2, 1)), 'elbow' + n)
+        fx = sx * .13
+        piece(roundbox(.24, .16, .34), SHOE(), xf((fx, .085, .06)), 'foot' + n)
+        piece(roundbox(.23, .12, .14), SOLE(), xf((fx, .062, .19)), 'foot' + n)
+        piece(roundbox(.27, .05, .4), SOLE(), xf((fx, .015, .06)), 'foot' + n)
+        piece(roundbox(.12, .08, .06), SHOE(), xf((fx, .17, .03), (-.3, 0, 0)), 'foot' + n)
+        for i in range(2):
+            piece(roundbox(.11, .02, .025), SOLE(), xf((fx, .158 - i * .012, .085 + i * .05), (.45, 0, 0)), 'foot' + n)
+
+    # Weights: each skin vertex blends its two nearest bones within its body region.
+    segs = {'hips': ((0, .55, 0), (0, .78, 0)), 'spine': ((0, .8, 0), (0, 1.12, 0)), 'neck': ((0, 1.2, 0), (0, 1.3, 0))}
+    for sx, n in ((1, 'L'), (-1, 'R')):
+        segs['shoulder' + n] = ((sx * AX, 1.06, 0), (sx * AX, .88, 0))
+        segs['elbow' + n] = ((sx * AX, .84, 0), (sx * AX, .62, 0))
+        segs['thigh' + n] = ((sx * .13, .62, 0), (sx * .13, .4, 0))
+        segs['knee' + n] = ((sx * .13, .36, 0), (sx * .13, .1, 0))
+    segs = {k: (V(a), V(b)) for k, (a, b) in segs.items()}
+    bm.verts.ensure_lookup_table()
+    weights = []
+    for i in range(body_count):
+        p = bm.verts[i].co.copy()
+        n = 'L' if p.x >= 0 else 'R'
+        arm_d = min(seg_dist(p, *segs['shoulder' + n]), seg_dist(p, *segs['elbow' + n]))
+        if arm_d < 0.105 and abs(p.x) > .25 and p.y > .6:
+            cands = ['shoulder' + n, 'elbow' + n] + (['spine'] if p.y > 1.02 else [])
+        elif p.y < .6:
+            cands = ['thigh' + n, 'knee' + n, 'hips']
+        else:
+            cands = ['hips', 'spine', 'neck'] + (['shoulder' + n] if abs(p.x) > .22 and p.y > 1.03 else []) + \
+                    (['thigh' + n] if p.y < .66 else [])
+        ws = sorted(((1 / (seg_dist(p, *segs[c]) ** 2 + 1e-4) ** 3, c) for c in cands), reverse=True)[:2]
+        tot = sum(w for w, _ in ws)
+        weights.append([(c, w / tot) for w, c in ws])
+    for first, last, bone in rigid:
+        for i in range(first, last):
+            weights.append([(bone, 1.0)])
+
+    bmesh.ops.transform(bm, matrix=TO_BLENDER, verts=bm.verts)
+    me = bpy.data.meshes.new('heroBody')
+    bm.to_mesh(me)
+    bm.free()
+    for m in mats:
+        me.materials.append(m)
+    ob = bpy.data.objects.new('heroBody', me)
+    scene.collection.objects.link(ob)
+    groups = {name: ob.vertex_groups.new(name=name) for name, *_ in bones}
+    for i, ws in enumerate(weights):
+        for name, w in ws:
+            groups[name].add([i], w, 'REPLACE')
+    ob.parent = rig
+    ob.modifiers.new('Armature', 'ARMATURE').object = rig
 
 
 def build_character():
-    # Pelvis (shorts), origin at the hips joint.
-    Part('pelvis').add(lathe([(0, -0.17), (0.13, -0.165), (0.21, -0.11), (0.25, -0.02), (0.25, 0.06),
-                              (0.22, 0.12), (0.16, 0.15), (0, 0.155)]), SHORTS(), xf(s=(1.08, 1, 0.95))).build()
+    build_hero()
 
-    # Torso, origin at the hips.
-    t = Part('torso')
-    t.add(lathe([(0, 0.02), (0.19, 0.04), (0.25, 0.11), (0.272, 0.22), (0.262, 0.34), (0.225, 0.44),
-                 (0.15, 0.51), (0.06, 0.535), (0, 0.537)]), SUIT(), xf(s=(1, 1, 0.94)))
-    t.add(sphere(0.2), BELLY(), xf((0, 0.21, 0.1), s=(1, 1.1, 0.62)))
-    t.add(ring(0.245, 0.07, 0.035), SHORTS(), xf(s=(1, 1, 0.94)))
-    t.add(roundbox(0.09, 0.07, 0.04), GOLD(), xf((0, 0.07, 0.262)))
-    t.build()
-
-    # Head, origin at the neck. Eyes are separate so they can blink.
+    # Head, origin at the neck: a bean head with a pale muzzle. Eyes are separate so they can blink.
     h = Part('head')
-    h.add(sphere(0.31, 36, 24), SUIT(), xf((0, 0.22, 0), s=(1, 0.97, 0.98)))
-    h.add(sphere(0.052, 16, 12), CHEEK(), xf((0, 0.16, 0.305), s=(1.15, 0.9, 0.9)))
-    # A small smile: a thin crescent of dark red under the nose.
-    h.add(ring(0.05, 0, 0.014, 20, 8), mat('mouth', 0x8a2a3a, 0.6), xf((0, 0.1, 0.286), (1.25, 0, 0), s=(1.2, 1, 0.55)))
+    h.add(sphere(0.31, 36, 24), SUIT(), xf((0, 0.23, -0.01), s=(1, 0.98, 0.97)))
+    h.add(sphere(0.17, 28, 18), BELLY(), xf((0, 0.12, 0.17), s=(1.3, 0.78, 0.8)))
+    h.add(sphere(0.055, 18, 12), mat('nose', 0xff7a93, 0.45), xf((0, 0.165, 0.315), s=(1.15, 0.9, 0.9)))
+    h.add(ring(0.05, 0, 0.013, 20, 8), mat('mouth', 0x8a2a3a, 0.6), xf((0, 0.085, 0.29), (1.35, 0, 0), s=(1.25, 1, 0.55)))
     for sx in (-1, 1):
-        h.add(sphere(0.062, 14, 10), CHEEK(), xf((sx * 0.2, 0.13, 0.22), s=(1, 0.6, 0.4)))
-        h.add(sphere(0.09, 16, 12), SUIT(), xf((sx * 0.3, 0.22, -0.01), s=(0.45, 0.7, 0.62)))
-        h.add(roundbox(0.1, 0.022, 0.03, 2), SHORTS(), xf((sx * 0.125, 0.43, 0.215), (0, 0, -sx * 0.18)))
+        h.add(sphere(0.06, 14, 10), CHEEK(), xf((sx * 0.2, 0.12, 0.225), s=(1, 0.6, 0.4)))
+        h.add(sphere(0.09, 16, 12), SUIT(), xf((sx * 0.3, 0.22, -0.02), s=(0.45, 0.72, 0.62)))
+        h.add(roundbox(0.11, 0.024, 0.032, 2), SHORTS(), xf((sx * 0.125, 0.45, 0.225), (0, 0, -sx * 0.22)))
+    for dx, a in ((-0.07, -0.5), (0, 0), (0.07, 0.5)):
+        h.add(lathe([(0.05, 0), (0, 0.13)], 14), SHORTS(), xf((dx, 0.33, -0.27), (-1.1, 0, a)))
     h.build()
 
     e = Part('eye')
-    eye_shapes(e)
+    eye_shapes(e, lid=SUIT())
     e.build()
-
-    # Arms: upper arm from the shoulder, forearm + mitten from the elbow.
-    Part('upperArm').add(sphere(0.085, 20, 14), SUIT()).add(capsule(0.073, 0.15), SUIT(), xf((0, -0.04, 0))).build()
-    f = Part('foreArm')
-    f.add(capsule(0.066, 0.1), SUIT())
-    f.add(lathe([(0.07, -0.12), (0.092, -0.125), (0.098, -0.16), (0.08, -0.165)], 28, closed=True), GLOVE())
-    f.add(sphere(0.105, 24, 16), GLOVE(), xf((0, -0.22, 0.005), s=(1, 1.05, 0.88)))
-    f.add(capsule(0.036, 0.04, 14, 4), GLOVE(), xf((0, -0.17, 0.075), (-0.9, 0, 0)))
-    f.build()
-
-    # Legs: shorts cuff + thigh from the hip, shin from the knee, shoe from the ankle.
-    Part('thigh').add(capsule(0.09, 0.19), SUIT(), xf((0, -0.02, 0))).add(
-        lathe([(0, 0.03), (0.105, 0.025), (0.118, -0.06), (0.11, -0.12), (0, -0.12)], 28), SHORTS()).build()
-    Part('shin').add(sphere(0.088, 18, 12), SUIT()).add(capsule(0.081, 0.15), SUIT()).build()
-    s = Part('shoe')
-    s.add(roundbox(0.25, 0.15, 0.36), SHOE(), xf((0, -0.03, 0.07)))
-    s.add(roundbox(0.27, 0.05, 0.39), SOLE(), xf((0, -0.095, 0.07)))
-    s.add(roundbox(0.15, 0.03, 0.12), SOLE(), xf((0, 0.035, 0.12), (0.35, 0, 0)))
-    s.build()
 
 
 def build_hat():
-    """Cappy: a rounded top hat with a curled brim, a red band and big eyes."""
+    """Cappy: a rounded top hat with a thick, upturned brim, a red band and heavy-lidded eyes."""
     p = Part('hat')
-    p.add(lathe([(0, 0.47), (0.13, 0.465), (0.23, 0.43), (0.285, 0.36), (0.305, 0.24), (0.315, 0.11),
-                 (0.322, 0.05), (0.42, 0.04), (0.48, 0.055), (0.505, 0.078), (0.512, 0.052), (0.49, 0.016),
-                 (0.42, 0.0), (0.3, 0.012), (0, 0.022)], 44), HAT())
-    p.add(lathe([(0.309, 0.055), (0.327, 0.058), (0.329, 0.135), (0.311, 0.14)], 44, closed=True), BAND())
+    p.add(lathe([(0, 0.47), (0.12, 0.466), (0.22, 0.44), (0.28, 0.375), (0.3, 0.27), (0.31, 0.15),
+                 (0.322, 0.06), (0.4, 0.05), (0.46, 0.062), (0.5, 0.09), (0.522, 0.095), (0.528, 0.06),
+                 (0.505, 0.02), (0.44, 0.0), (0.33, 0.0), (0, 0.015)], 48), HAT())
+    p.add(lathe([(0.307, 0.06), (0.326, 0.064), (0.328, 0.145), (0.309, 0.15)], 48, closed=True), BAND())
+    p.add(ring(0.327, 0.104, 0.006, 48, 6), mat('stitch', 0xffe9a8, 0.6))
     for sx in (-1, 1):
-        eye_shapes(p, (sx * 0.1, 0.25, 0.268), 0.075, iris=False, rot=(0, sx * 0.3, 0))
+        eye_shapes(p, (sx * 0.1, 0.26, 0.262), 0.078, iris=False, rot=(0, sx * 0.3, 0), lid=HAT(), lid_cut=0.42)
     p.build()
 
 
 # ---------- creatures ----------
 def build_goomba():
     brown, tan, dark = mat('gBrown', 0x9b5a2f, 0.6), mat('gTan', 0xf1d2a0, 0.7), mat('gDark', 0x4b2a16, 0.6)
+    under = mat('gUnder', 0x6e3c1c, 0.7)
     p = Part('goomba')
-    p.add(lathe([(0, 0.06), (0.19, 0.08), (0.26, 0.18), (0.255, 0.32), (0.2, 0.4), (0, 0.42)], 28), tan)
-    p.add(lathe([(0, 0.99), (0.2, 0.97), (0.38, 0.89), (0.5, 0.76), (0.555, 0.62), (0.54, 0.52), (0.46, 0.45),
-                 (0.3, 0.42), (0, 0.42)], 40), brown)
-    p.add(sphere(0.4, 30, 18), tan, xf((0, 0.54, 0.11), s=(1.05, 0.55, 0.95)))
+    p.add(lathe([(0, 0.06), (0.19, 0.08), (0.26, 0.18), (0.255, 0.32), (0.2, 0.42), (0, 0.44)], 28), tan)
+    # A flared mushroom cap with a darker rim underneath.
+    p.add(lathe([(0, 1.0), (0.22, 0.98), (0.4, 0.9), (0.52, 0.78), (0.58, 0.65), (0.592, 0.56), (0.57, 0.5),
+                 (0.5, 0.465), (0.3, 0.46), (0, 0.46)], 44), brown)
+    p.add(ring(0.5, 0.485, 0.045, 44, 8), under)
+    p.add(sphere(0.42, 30, 18), tan, xf((0, 0.5, 0.12), s=(1.0, 0.45, 0.85)))
     for sx in (-1, 1):
-        # Eyes sit on the front of the cap, just above the tan face.
-        p.add(sphere(0.13, 22, 16), WHITE(), xf((sx * 0.15, 0.64, 0.5), (0, sx * 0.28, 0), s=(0.75, 1.15, 0.45)))
-        p.add(sphere(0.065, 16, 12), INK(), xf((sx * 0.14, 0.62, 0.545), (0, sx * 0.28, 0), s=(0.85, 1.2, 0.45)))
-        p.add(sphere(0.018, 8, 6), GLINT(), xf((sx * 0.125, 0.66, 0.565)))
-        p.add(roundbox(0.22, 0.055, 0.06), dark, xf((sx * 0.16, 0.8, 0.47), (0.35, 0, -sx * 0.4)))
-        p.add(lathe([(0.04, 0.0), (0, -0.09)], 12), WHITE(), xf((sx * 0.11, 0.47, 0.44)))
-    p.add(sphere(0.12, 18, 12), INK(), xf((0, 0.47, 0.425), s=(1.4, 0.4, 0.35)))
+        p.add(sphere(0.14, 22, 16), WHITE(), xf((sx * 0.16, 0.66, 0.52), (0, sx * 0.3, 0), s=(0.72, 1.15, 0.45)))
+        p.add(sphere(0.07, 16, 12), INK(), xf((sx * 0.145, 0.635, 0.57), (0, sx * 0.3, 0), s=(0.85, 1.2, 0.45)))
+        p.add(sphere(0.02, 8, 6), GLINT(), xf((sx * 0.13, 0.675, 0.59)))
+        p.add(roundbox(0.25, 0.065, 0.07), INK(), xf((sx * 0.17, 0.83, 0.49), (0.35, 0, -sx * 0.42)))
+        p.add(lathe([(0.045, 0.0), (0, -0.1)], 12), WHITE(), xf((sx * 0.12, 0.45, 0.47)))
+    p.add(sphere(0.13, 18, 12), INK(), xf((0, 0.455, 0.455), s=(1.5, 0.38, 0.35)))
     p.build()
-    Part('goombaFoot').add(roundbox(0.3, 0.16, 0.44), dark).build()
+    Part('goombaFoot').add(roundbox(0.34, 0.18, 0.48), dark).build()
     pink = mat('bow', 0xff5fa2, 0.4)
     b = Part('goombaBow')
     for sx in (-1, 1):
@@ -323,18 +484,20 @@ def build_frog():
     p = Part('frogBody')
     p.add(sphere(0.5, 36, 22), green, xf((0, 0.42, 0), s=(1, 0.72, 1.12)))
     p.add(sphere(0.38, 28, 18), pale, xf((0, 0.34, 0.22), s=(1, 0.66, 0.85)))
-    p.add(sphere(0.1, 16, 10), INK(), xf((0, 0.47, 0.5), s=(3.2, 0.14, 0.5)))
+    p.add(ring(0.17, 0.47, 0.012, 30, 6), INK(), xf((0, 0, 0.36), s=(1.6, 1, 0.9)))
     for sx in (-1, 1):
         p.add(sphere(0.18, 22, 14), green, xf((sx * 0.22, 0.78, 0.18)))
-        p.add(sphere(0.12, 20, 14), WHITE(), xf((sx * 0.22, 0.82, 0.27), s=(0.85, 1.05, 0.7)))
-        p.add(sphere(0.06, 14, 10), INK(), xf((sx * 0.22, 0.82, 0.35), s=(0.9, 1.1, 0.5)))
-        p.add(sphere(0.018, 8, 6), GLINT(), xf((sx * 0.2, 0.86, 0.37)))
+        eye_shapes(p, (sx * 0.22, 0.82, 0.29), 0.12, iris=False, rot=(0, sx * 0.25, 0), lid=green, lid_cut=0.3)
         p.add(roundbox(0.2, 0.07, 0.2), dark, xf((sx * 0.27, 0.05, 0.38)))
+        for dx in (-0.06, 0, 0.06):
+            p.add(sphere(0.035, 10, 8), dark, xf((sx * 0.27 + dx, 0.04, 0.49)))
         p.add(sphere(0.05, 10, 8), CHEEK(), xf((sx * 0.3, 0.55, 0.42), s=(1, 0.6, 0.4)))
     p.build()
     leg = Part('frogLeg')
     leg.add(sphere(0.22, 22, 14), dark, xf(s=(0.72, 0.62, 1.4)))
     leg.add(roundbox(0.18, 0.06, 0.3), dark, xf((0, -0.15, -0.12)))
+    for dx in (-0.06, 0, 0.06):
+        leg.add(sphere(0.035, 10, 8), dark, xf((dx, -0.16, -0.28)))
     leg.build()
 
 
@@ -364,5 +527,5 @@ os.makedirs(os.path.dirname(OUT_GLB), exist_ok=True)
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format='GLB', export_yup=True, export_apply=True,
                           export_animations=False, export_cameras=False, export_lights=False)
-print('MODELS', [o.name for o in scene.objects], 'tris', sum(len(o.data.polygons) for o in scene.objects))
+print('MODELS', [o.name for o in scene.objects], 'tris', sum(len(o.data.polygons) for o in scene.objects if o.type == 'MESH'))
 sys.stdout.flush()

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PI, TAU, clamp, damp, smooth, angDiff, lerp } from './util.js';
-import { model, swapIn } from './models.js';
+import { model, swapIn, heroRig } from './models.js';
+
+const _e = new THREE.Euler(), _q = new THREE.Quaternion();
 
 // A jointed character posed procedurally. Each frame we build a target pose from the
 // player's state and ease every joint toward it, so moves blend into each other.
@@ -73,14 +75,14 @@ export class Character {
 
     this.arms = {}; this.legs = {};
     for (const [k, s] of [['l', 1], ['r', -1]]) {
-      const sh = new THREE.Group(); sh.position.set(s * 0.3, 0.4, 0); sh.rotation.order = 'ZXY'; spine.add(sh);
+      const sh = new THREE.Group(); sh.position.set(s * 0.3, 0.4, 0); sh.rotation.order = 'XYZ'; // spread outward first, then swing forward spine.add(sh);
       part(new THREE.CapsuleGeometry(0.072, 0.15, 6, 12), suit, sh, 0, -0.11, 0);
       const el = new THREE.Group(); el.position.y = -0.23; sh.add(el);
       part(new THREE.CapsuleGeometry(0.066, 0.12, 6, 12), suit, el, 0, -0.09, 0);
       part(new THREE.SphereGeometry(0.105, 16, 12), glove, el, 0, -0.21, 0.01).scale.set(1, 1.05, 0.9);
       this.arms[k] = { sh, el };
 
-      const hip = new THREE.Group(); hip.position.set(s * 0.13, -0.03, 0); hip.rotation.order = 'ZXY'; hips.add(hip);
+      const hip = new THREE.Group(); hip.position.set(s * 0.13, -0.03, 0); hip.rotation.order = 'XYZ'; hips.add(hip);
       part(new THREE.CapsuleGeometry(0.088, 0.15, 6, 12), suit, hip, 0, -0.13, 0);
       const kn = new THREE.Group(); kn.position.y = -0.28; hip.add(kn);
       part(new THREE.CapsuleGeometry(0.08, 0.13, 6, 12), suit, kn, 0, -0.11, 0);
@@ -97,24 +99,67 @@ export class Character {
       swapIn(this.legs[k].hip, 'thigh'); swapIn(this.legs[k].kn, 'shin'); swapIn(this.legs[k].ft, 'shoe');
     }
 
+    const rig = heroRig();
+    if (rig) this.useRig(rig, body, hips, head);
+
     this.cur = { ...REST }; this.tgt = { ...REST };
     this.fp = 0; this.fy = 0; this.phase = 0; this.stepSign = true; this.rollVis = 0;
     this.sq = 0; this.sqv = 0; this.yaw = 0; this.blinkT = 2; this.blink = 0; this.spinA = 0; this.hatPop = 0;
     this.onStep = null;
   }
 
+  // Swap the jointed primitive body for the skinned Blender body. The bones get the same
+  // rotations the joint groups would have, converted into each bone's own rest frame.
+  useRig(rig, body, hips, head) {
+    const names = ['hips', 'spine', 'neck', 'shoulderL', 'elbowL', 'shoulderR', 'elbowR',
+      'thighL', 'kneeL', 'footL', 'thighR', 'kneeR', 'footR'];
+    if (names.some((n) => !rig.getObjectByName(n))) return;
+    body.remove(hips);
+    rig.position.set(0, 0, 0);
+    body.add(rig);
+    this.root.updateMatrixWorld(true);
+    this.bones = {};
+    for (const n of names) {
+      const b = rig.getObjectByName(n), qp = b.parent.getWorldQuaternion(new THREE.Quaternion());
+      this.bones[n] = { b, rest: b.quaternion.clone(), qp, qpInv: qp.clone().invert() };
+    }
+    rig.traverse((o) => { if (o.isSkinnedMesh) { o.frustumCulled = false; o.castShadow = true; } });
+    // Head, eyes and hat ride on a frame that lines up with the world at rest.
+    const hb = this.bones.neck.b, frame = new THREE.Object3D();
+    frame.quaternion.copy(hb.getWorldQuaternion(new THREE.Quaternion()).invert());
+    hb.add(frame);
+    head.parent.remove(head); head.position.set(0, 0, 0); head.rotation.set(0, 0, 0);
+    frame.add(head);
+  }
+
+  // Rotate a bone by an Euler given in the world-aligned joint frame.
+  pose(name, x, y, z, order = 'XYZ') {
+    const B = this.bones[name];
+    _q.setFromEuler(_e.set(x, y, z, order));
+    B.b.quaternion.copy(B.qpInv).multiply(_q).multiply(B.qp).multiply(B.rest);
+  }
+
   apply() {
     const c = this.cur, A = this.arms, L = this.legs;
     this.pivot.position.y = PIV + c.y;
     this.pivot.rotation.set(c.pitch + this.fp, this.fy, c.roll);
+    const s = this.sq;
+    this.squashG.scale.set(1 + s * 0.45, 1 - s, 1 + s * 0.45);
+    if (this.bones) {
+      this.pose('spine', c.spine, 0, 0);
+      this.pose('neck', c.headX, c.headY, 0);
+      this.pose('shoulderL', -c.lArmX, 0, c.lArmZ); this.pose('elbowL', -c.lElbow, 0, 0);
+      this.pose('shoulderR', -c.rArmX, 0, -c.rArmZ); this.pose('elbowR', -c.rElbow, 0, 0);
+      this.pose('thighL', -c.lLegX, 0, c.lLegZ); this.pose('kneeL', c.lKnee, 0, 0); this.pose('footL', (c.lLegX - c.lKnee) * 0.8, 0, 0);
+      this.pose('thighR', -c.rLegX, 0, -c.rLegZ); this.pose('kneeR', c.rKnee, 0, 0); this.pose('footR', (c.rLegX - c.rKnee) * 0.8, 0, 0);
+      return;
+    }
     this.spine.rotation.x = c.spine;
     this.head.rotation.set(c.headX, c.headY, 0);
     A.l.sh.rotation.set(-c.lArmX, 0, c.lArmZ); A.l.el.rotation.x = -c.lElbow;
     A.r.sh.rotation.set(-c.rArmX, 0, -c.rArmZ); A.r.el.rotation.x = -c.rElbow;
     L.l.hip.rotation.set(-c.lLegX, 0, c.lLegZ); L.l.kn.rotation.x = c.lKnee; L.l.ft.rotation.x = (c.lLegX - c.lKnee) * 0.8;
     L.r.hip.rotation.set(-c.rLegX, 0, -c.rLegZ); L.r.kn.rotation.x = c.rKnee; L.r.ft.rotation.x = (c.rLegX - c.rKnee) * 0.8;
-    const s = this.sq;
-    this.squashG.scale.set(1 + s * 0.45, 1 - s, 1 + s * 0.45);
   }
 
   animate(P, dt, time, camYaw) {

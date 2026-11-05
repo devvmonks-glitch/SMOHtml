@@ -70,7 +70,9 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 
 ## Playing locally
 
-Download the zip from the latest [release](https://github.com/devvmonks-glitch/SMOHtml/releases), unzip it and open `index.html`. three.js is bundled into `game.js`, so it works offline (only the font comes from the web).
+**Single file:** download `hop-lab.html` (from the repo or the latest [release](https://github.com/devvmonks-glitch/SMOHtml/releases)) and open it. Everything (code, styles, models) is inside that one file, so it works offline (only the font comes from the web).
+
+**Or** download the zip from the latest release, unzip it and open `index.html`.
 
 Or serve the folder with any static server:
 
@@ -87,8 +89,10 @@ The source lives in `src/` as ES modules and is bundled into `game.js` with esbu
 ```bash
 npm install
 npm run watch   # rebuild game.js on every change
-npm run build   # minified build before committing
+npm run build   # minified game.js plus the single-file hop-lab.html
 ```
+
+Graphics: desktop browsers get ambient occlusion; touch devices skip it. Add `?lq` to the URL to turn it off anywhere.
 
 Add `?debug` to the URL to expose the game state as `window.HL` in the console.
 
@@ -101,12 +105,15 @@ blender --background --factory-startup --python tools/blender/build_models.py
 npm run build
 ```
 
-That writes `assets/models.glb` (embedded into `game.js` at build time) and `tools/blender/models.blend`, which you can open in Blender. Each character part is a separate object with its origin at the joint it hangs from, which is how `src/character.js` poses it. If the models ever fail to load, the game falls back to simple built-in shapes.
+That writes `assets/models.glb` (embedded into `game.js` at build time) and `tools/blender/models.blend`, which you can open in Blender.
+
+The hero is one skinned body on a 13-bone skeleton (`heroRig`), built by fusing simple shapes with a voxel remesh and weighting each vertex to its nearest bones. The bones sit on the same joints `src/character.js` animates, and the code converts each procedural joint rotation into the bone's own rest frame. The head, eyes and Cappy are rigid models riding on the neck bone. If the models ever fail to load, the game falls back to simple built-in shapes.
 
 ```
 index.html        page, HUD, menu and touch controls
 style.css         all styles
 game.js           built bundle (don't edit by hand)
+hop-lab.html      the whole game in one file (built)
 src/main.js       renderer, lighting, menu wiring and the game loop
 src/player.js     movement state machine: every move lives here
 src/world.js      collision world (boxes, cylinders, ramps) and body movement
@@ -123,6 +130,7 @@ src/hud.js        on-screen counters, toasts and banners
 src/models.js     loads the Blender models and swaps them into the rig
 assets/models.glb exported models
 tools/blender/    Blender modeling script and .blend file
+tools/build-single.mjs  inlines everything into hop-lab.html
 ```
 
 ## License

@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import glb from '../assets/models.glb';
 
 const parts = {};
+export const loadedParts = parts; // for ?debug
 
 export async function loadModels() {
   try {
@@ -24,6 +25,9 @@ export async function loadModels() {
     console.warn('Models failed to load; using simple shapes instead.', e);
   }
 }
+
+// The hero's skinned body and skeleton (there is only one, so it isn't cloned).
+export const heroRig = () => parts.heroRig || null;
 
 // A fresh instance of a named model (geometry and materials are shared), or null.
 export function model(name) {
