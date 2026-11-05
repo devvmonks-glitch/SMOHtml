@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { std, makeHat } from './character.js';
 import { moveBody } from './world.js';
+import { model } from './models.js';
 import { PI, TAU, clamp, angDiff, dirOf, damp, rand } from './util.js';
 
 const part = (geo, mat, parent, x = 0, y = 0, z = 0) => {
@@ -68,6 +69,15 @@ export class Frog extends Capturable {
     this.R = 0.48; this.H = 0.95; this.hopT = rand(1, 3);
     const green = std(0x49c45a, { roughness: 0.5 }), pale = std(0xe9f7a8, { roughness: 0.6 }), dark = std(0x2f8a3d, { roughness: 0.6 });
     this.body = new THREE.Group(); this.group.add(this.body);
+    const fm = model('frogBody');
+    if (fm) {
+      this.body.add(fm);
+      this.legs = [-1, 1].map((s) => { const l = model('frogLeg'); l.position.set(s * 0.4, 0.2, -0.25); l.userData.baseZ = 1; this.body.add(l); return l; });
+    } else this.buildSimple(green, pale, dark);
+    this.addHat(0.92, 0.7);
+    this.croakT = rand(2, 6);
+  }
+  buildSimple(green, pale, dark) {
     part(new THREE.SphereGeometry(0.5, 28, 20), green, this.body, 0, 0.42, 0).scale.set(1, 0.72, 1.12);
     part(new THREE.SphereGeometry(0.38, 20, 14), pale, this.body, 0, 0.36, 0.2).scale.set(1, 0.7, 0.9);
     for (const s of [-1, 1]) {
@@ -77,8 +87,7 @@ export class Frog extends Capturable {
       part(new THREE.SphereGeometry(0.1, 10, 8), dark, this.body, s * 0.26, 0.08, 0.38).scale.set(1.3, 0.5, 1);
     }
     this.legs = this.body.children.filter((c, i) => i > 0 && c.position.z === -0.25);
-    this.addHat(0.92, 0.7);
-    this.croakT = rand(2, 6);
+    for (const l of this.legs) l.userData.baseZ = 1.4;
   }
   update(h, G) {
     if (this.captured) return;
@@ -119,12 +128,19 @@ export class Frog extends Capturable {
     this.body.scale.set(1 + this.sq * 0.4, 1 - this.sq, 1 + this.sq * 0.4);
     const stretch = grounded ? 0 : clamp(vy / 15, -1, 1);
     this.body.rotation.x = -stretch * 0.25;
-    for (const l of this.legs) { l.scale.z = 1.4 + Math.max(0, stretch) * 1.4; l.position.y = 0.2 - Math.max(0, stretch) * 0.12; }
+    for (const l of this.legs) { l.scale.z = l.userData.baseZ * (1 + Math.max(0, stretch)); l.position.y = 0.2 - Math.max(0, stretch) * 0.12; }
   }
 }
 
 // ---------- goomba ----------
 function buildGoomba(group, bow = false) {
+  const body0 = model('goomba');
+  if (body0) {
+    const body = new THREE.Group(); body.add(body0); group.add(body);
+    const feet = [-1, 1].map((s) => { const f = model('goombaFoot'); f.position.set(s * 0.17, 0.08, 0.04); group.add(f); return f; });
+    if (bow) { const b = model('goombaBow'); b.position.set(0, 0.98, -0.05); body.add(b); }
+    return { body, feet };
+  }
   const brown = std(0x9b5a2f, { roughness: 0.6 }), tan = std(0xf1d2a0, { roughness: 0.7 }), dark = std(0x4b2a16, { roughness: 0.6 }), ink = std(0x1d1208);
   const body = new THREE.Group(); group.add(body);
   part(new THREE.CylinderGeometry(0.22, 0.27, 0.32, 18), tan, body, 0, 0.24, 0);

@@ -18,3 +18,4 @@ dist/
 
 # Build output
 game.js.map
+*.blend1

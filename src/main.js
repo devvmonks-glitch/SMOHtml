@@ -13,6 +13,7 @@ import { CameraRig } from './camera.js';
 import { PopCoins } from './objects.js';
 import { buildLevel } from './level.js';
 import { canvasTex } from './materials.js';
+import { loadModels } from './models.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -20,6 +21,7 @@ const STEP = 1 / 120;
 async function start() {
   if (!document.createElement('canvas').getContext('webgl2')) throw new Error('This browser doesn’t support WebGL 2, which the game needs.');
   try { await Promise.race([document.fonts.load('700 40px Fredoka'), new Promise(r => setTimeout(r, 1500))]); } catch { /* fonts optional */ }
+  await loadModels();
 
   const canvas = document.getElementById('c');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });

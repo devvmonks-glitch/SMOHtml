@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { std } from './character.js';
 import { gridMat, worldUV, canvasTex, labelTex } from './materials.js';
 import { PI, TAU, smooth, damp } from './util.js';
+import { model } from './models.js';
 
 const gold = () => new THREE.MeshStandardMaterial({ color: 0xffcc33, metalness: 0.45, roughness: 0.28, emissive: 0xb07800, emissiveIntensity: 0.45 });
 const shadowed = m => { m.castShadow = true; m.receiveShadow = true; return m; };
@@ -9,6 +10,8 @@ const shadowed = m => { m.castShadow = true; m.receiveShadow = true; return m; }
 // ---------- coins ----------
 let coinGeo = null, coinMat = null;
 function coinMesh() {
+  const mm = model('coin');
+  if (mm) return mm;
   if (!coinGeo) {
     coinGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.08, 28); coinGeo.rotateX(PI / 2);
     coinMat = gold();
@@ -77,11 +80,13 @@ function glowTexture() {
 
 export class Moon {
   constructor(G, x, y, z, name, opts = {}) {
-    moonGeo = moonGeo || makeMoonGeo();
     const color = opts.color || 0xffd23f;
     this.group = new THREE.Group(); this.group.position.set(x, y, z);
-    const m = new THREE.Mesh(moonGeo, new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.25, emissive: color, emissiveIntensity: 0.28 }));
-    m.scale.setScalar(1.5); m.rotation.z = -0.35; m.castShadow = true;
+    const moonMat = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.25, emissive: color, emissiveIntensity: 0.28 });
+    let m = model('moon');
+    if (m) m.traverse((o) => { if (o.isMesh) o.material = moonMat; });
+    else { moonGeo = moonGeo || makeMoonGeo(); m = new THREE.Mesh(moonGeo, moonMat); m.castShadow = true; }
+    m.scale.setScalar(1.5); m.rotation.z = -0.35;
     this.spinner = new THREE.Group(); this.spinner.add(m); this.group.add(this.spinner);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.75 }));
     glow.scale.setScalar(2.6); this.group.add(glow);

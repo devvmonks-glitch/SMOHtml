@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PI, TAU, clamp, damp, smooth, angDiff, lerp } from './util.js';
+import { model, swapIn } from './models.js';
 
 // A jointed character posed procedurally. Each frame we build a target pose from the
 // player's state and ease every joint toward it, so moves blend into each other.
@@ -20,6 +21,8 @@ function part(geo, mat, parent, x = 0, y = 0, z = 0) {
 }
 
 export function makeHat(eyes = true) {
+  const m = eyes && model('hat');
+  if (m) return m;
   const g = new THREE.Group(), yel = std(0xffcf3f, { roughness: 0.42 }), band = std(0xe0565b, { roughness: 0.5 });
   part(new THREE.CylinderGeometry(0.47, 0.49, 0.06, 36), yel, g);
   part(new THREE.CylinderGeometry(0.28, 0.31, 0.32, 32), yel, g, 0, 0.18, 0);
@@ -84,6 +87,14 @@ export class Character {
       const ft = new THREE.Group(); ft.position.y = -0.27; kn.add(ft);
       part(new THREE.SphereGeometry(0.13, 18, 12), shoe, ft, 0, -0.03, 0.07).scale.set(0.95, 0.62, 1.45);
       this.legs[k] = { hip, kn, ft };
+    }
+
+    // Swap in the Blender-made parts where they loaded (see tools/blender/build_models.py).
+    swapIn(hips, 'pelvis'); swapIn(spine, 'torso'); swapIn(head, 'head');
+    for (const eg of this.eyes) swapIn(eg, 'eye');
+    for (const k of ['l', 'r']) {
+      swapIn(this.arms[k].sh, 'upperArm'); swapIn(this.arms[k].el, 'foreArm');
+      swapIn(this.legs[k].hip, 'thigh'); swapIn(this.legs[k].kn, 'shin'); swapIn(this.legs[k].ft, 'shoe');
     }
 
     this.cur = { ...REST }; this.tgt = { ...REST };

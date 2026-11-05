@@ -92,6 +92,17 @@ npm run build   # minified build before committing
 
 Add `?debug` to the URL to expose the game state as `window.HL` in the console.
 
+### Models
+
+The character, Cappy, Goombas, the frog, Power Moons and coins are modeled in Blender by a script, so they can be rebuilt or tweaked:
+
+```bash
+blender --background --factory-startup --python tools/blender/build_models.py
+npm run build
+```
+
+That writes `assets/models.glb` (embedded into `game.js` at build time) and `tools/blender/models.blend`, which you can open in Blender. Each character part is a separate object with its origin at the joint it hangs from, which is how `src/character.js` poses it. If the models ever fail to load, the game falls back to simple built-in shapes.
+
 ```
 index.html        page, HUD, menu and touch controls
 style.css         all styles
@@ -109,10 +120,13 @@ src/input.js      keyboard, mouse, gamepad and touch
 src/audio.js      synthesised sound effects
 src/fx.js         particles and shockwave rings
 src/hud.js        on-screen counters, toasts and banners
+src/models.js     loads the Blender models and swaps them into the rig
+assets/models.glb exported models
+tools/blender/    Blender modeling script and .blend file
 ```
 
 ## License
 
 [MIT](LICENSE)
 
-This is a fan-made movement prototype. It isn't affiliated with or endorsed by Nintendo, and it contains no Nintendo assets: every model, texture and sound is made in code.
+This is a fan-made movement prototype. It isn't affiliated with or endorsed by Nintendo, and it contains no Nintendo assets: every model, texture and sound is made in code (the models by a Blender script).
