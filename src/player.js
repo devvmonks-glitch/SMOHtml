@@ -6,9 +6,11 @@ export const PHYS = { G: 34, FALL: 34, RUN: 9.5, ACC: 40, DEC: 44, R: 0.36, H: 1
 const JUMP_VY = [0, 11.5, 13.5, 17];
 
 const GROUND = new Set(['ground', 'crouch', 'skid', 'gpLand', 'roll', 'diveSlide']);
-const WALL_IN = new Set(['air', 'longjump', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch']);
-const LEDGE_IN = new Set(['air', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch', 'longjump']);
-export const BOUNCE = new Set(['air', 'longjump', 'backflip', 'sideflip', 'dive', 'gpjump', 'capbounce', 'launch']);
+const WALL_IN = new Set(['air', 'longjump', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch', 'twirl', 'spinjump']);
+const LEDGE_IN = new Set(['air', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch', 'longjump', 'twirl', 'spinjump']);
+// States a stick spin can turn into a twirl from.
+const TWIRL_IN = new Set(['air', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch', 'longjump']);
+export const BOUNCE = new Set(['air', 'longjump', 'backflip', 'sideflip', 'dive', 'gpjump', 'capbounce', 'launch', 'twirl', 'spinjump']);
 const SPECIAL = new Set(['capture', 'pipe', 'moonGet', 'ledge', 'climb']);
 export const isGround = s => GROUND.has(s);
 
@@ -18,7 +20,7 @@ export function createPlayer(pos, facing) {
     onGround: false, ground: null, groundN: null, coyote: 0, chain: 0, jumpCount: 0, lastJump: '', anim: '', variable: false,
     capThrown: false, capBounced: false, diveUsed: false, wallN: null, skidDir: 0, sideDir: 1, rollSpeed: 0, squash: 0,
     ledge: null, ledgeCD: 0, climb: null, capture: null, captureCD: 0, invuln: 0, throwT: 9, hs: 0, turnRate: 0, landT: 9,
-    jumpBuf: 0, crouchBuf: 0, capBuf: 0, pipe: null, shimmy: 0, airT: 0,
+    jumpBuf: 0, crouchBuf: 0, capBuf: 0, spinBuf: 0, crouchTap: 0, twirlUsed: false, pipe: null, shimmy: 0, airT: 0,
   };
 }
 
@@ -38,8 +40,9 @@ export function createPlayerSystem(G) {
 
   function press(n) {
     if (n === 'jump') P.jumpBuf = PHYS.JB;
-    if (n === 'crouch') P.crouchBuf = 0.12;
+    if (n === 'crouch') { P.crouchBuf = 0.12; P.crouchTap = 0.3; }
     if (n === 'cap') P.capBuf = 0.12;
+    if (n === 'spin') P.spinBuf = 0.45;
   }
 
   function doJump(vy, state, name, variable, tag) {
@@ -62,9 +65,24 @@ export function createPlayerSystem(G) {
 
   function capBounce() {
     P.vel.y = 13.5; setState('capbounce'); P.flipT = 0; P.variable = false;
-    P.capBounced = true; P.diveUsed = false; P.capThrown = false; P.squash -= 0.3;
+    P.capBounced = true; P.diveUsed = false; P.capThrown = false; P.twirlUsed = false; P.squash -= 0.3;
     G.hud.toast('Cap jump'); G.sfx.capBounce();
     G.fx.sparkle(P.pos.x, P.pos.y + 0.6, P.pos.z, 12, 0xfff2a8);
+  }
+
+  function startRoll(speed, name = 'Roll') {
+    P.capBuf = 0; P.crouchTap = 0;
+    if (G.W) P.facing = Math.atan2(G.W.x, G.W.z);
+    P.rollSpeed = speed; setState('roll');
+    G.hud.toast(name); G.sfx.spin(); G.fx.dust(P.pos.x, P.pos.y, P.pos.z, 6, 2.5, 0.22);
+  }
+  // Spin throw when the stick was just spun, a normal throw otherwise.
+  function throwCap() {
+    const spin = P.spinBuf > 0;
+    if (!G.cap.throw(spin ? 'spin' : 'normal')) return false;
+    P.capBuf = 0; P.throwT = 0;
+    if (spin) { P.spinBuf = 0; G.hud.toast('Spin throw'); }
+    return true;
   }
 
   function dive() {
@@ -125,9 +143,17 @@ export function createPlayerSystem(G) {
     P.coyote = 0.1; P.g = PHYS.G; P.crouchBuf = 0; P.airT = 0;
     const W = G.W, s = P.state, hs = P.hs, gn = P.groundN;
 
+    // A stick spin beats everything else on the ground, including a skid.
+    if ((s === 'ground' || s === 'skid') && P.jumpBuf > 0 && P.spinBuf > 0 && !inp.crouch) {
+      P.spinBuf = 0; P.jumpCount = 0;
+      doJump(14 + hs * 0.05, 'spinjump', 'Spin jump', false); G.sfx.spinJump();
+      return;
+    }
+
     if (s === 'gpLand') {
       accelTo(0, 0, 80, h);
       if (P.jumpBuf > 0) { doJump(18, 'gpjump', 'Ground pound jump', false); G.sfx.bigJump(); return; }
+      if (P.capBuf > 0) { startRoll(15, 'Ground pound roll'); return; }
       if (P.t > 0.25) setState(inp.crouch ? 'crouch' : 'ground');
       return;
     }
@@ -196,15 +222,14 @@ export function createPlayerSystem(G) {
         }
         return;
       }
-      if (P.capBuf > 0) {
-        P.capBuf = 0; P.rollSpeed = Math.max(hs, 13); setState('roll');
-        G.hud.toast('Roll'); G.sfx.spin(); G.fx.dust(P.pos.x, P.pos.y, P.pos.z, 6, 2.5, 0.22);
-      }
+      if (P.capBuf > 0) startRoll(Math.max(hs, 13));
       return;
     }
     if (s === 'crouch') setState('ground');
+    // A quick tap of Crouch followed by Cap also rolls.
+    if (P.capBuf > 0 && P.crouchTap > 0) { startRoll(Math.max(hs, 13)); return; }
 
-    if (W && hs > 5.5) {
+    if (W && hs > 5.5 && P.spinBuf <= 0) {
       const d = (P.vel.x * W.x + P.vel.z * W.z) / hs;
       if (d < -0.6) { P.skidDir = Math.atan2(W.x, W.z); setState('skid'); G.sfx.skid(); return; }
     }
@@ -228,7 +253,7 @@ export function createPlayerSystem(G) {
       G.sfx.jump(n);
       return;
     }
-    if (P.capBuf > 0 && G.cap.throw()) { P.capBuf = 0; P.throwT = 0; }
+    if (P.capBuf > 0) throwCap();
   }
 
   // ---------- air ----------
@@ -253,7 +278,7 @@ export function createPlayerSystem(G) {
       P.vel.x = -n.x * 1.5; P.vel.z = -n.z * 1.5;
       if (P.jumpBuf > 0) {
         P.facing = Math.atan2(n.x, n.z); P.vel.x = n.x * 8; P.vel.z = n.z * 8;
-        doJump(14, 'air', 'Wall jump', false); P.jumpCount = 0; P.diveUsed = false; P.capThrown = false;
+        doJump(14, 'air', 'Wall jump', false); P.jumpCount = 0; P.diveUsed = false; P.capThrown = false; P.twirlUsed = false;
         G.sfx.wallJump(); G.fx.dust(P.pos.x - n.x * 0.3, P.pos.y + 0.8, P.pos.z - n.z * 0.3, 6, 2, 0.2);
         return;
       }
@@ -268,6 +293,16 @@ export function createPlayerSystem(G) {
     else if (s === 'dive') { ctrl = 5; P.g = 28; }
     else if (s === 'backflip' || s === 'sideflip') ctrl = 12;
     else if (s === 'launch') ctrl = 16;
+    else if (s === 'twirl') {
+      // A slow, spinning descent.
+      // Rising keeps normal gravity so a twirl can't stretch a big jump even higher.
+      ctrl = 20; P.g = P.vel.y > 0 ? PHYS.G : PHYS.G * 0.3;
+      if (P.vel.y < -2.5) P.vel.y = -2.5;
+      if (P.t > 0.65) { setState('air'); P.variable = false; }
+    } else if (s === 'spinjump') {
+      ctrl = 18; P.g = P.vel.y > 0 ? PHYS.G * 0.85 : PHYS.G * 0.4;
+      if (P.vel.y < -9) P.vel.y = -9;
+    }
     if (P.variable && P.vel.y > 0 && !inp.jump) P.g = PHYS.G * 2.5;
     else if ((s === 'air' || s === 'launch' || s === 'capbounce') && Math.abs(P.vel.y) < 2.5) P.g = PHYS.G * 0.7; // hang at the apex
 
@@ -280,12 +315,19 @@ export function createPlayerSystem(G) {
     if (s === 'air' && P.coyote > 0 && P.jumpBuf > 0 && P.vel.y <= 0) {
       doJump(JUMP_VY[1], 'air', '', true, 'chain'); P.jumpCount = 1; G.sfx.jump(1); return;
     }
+    if (P.spinBuf > 0 && !P.twirlUsed && TWIRL_IN.has(s)) {
+      if (P.capBuf > 0 && !P.capThrown && throwCap()) P.capThrown = true;
+      P.spinBuf = 0; P.twirlUsed = true; setState('twirl'); P.variable = false; P.anim = '';
+      if (P.vel.y < 4) P.vel.y = 4;
+      G.hud.toast('Twirl'); G.sfx.twirl();
+      return;
+    }
     if (P.crouchBuf > 0 && s !== 'dive') {
       P.crouchBuf = 0; setState('gpWind'); P.vel.set(0, 0, 0); P.variable = false;
       G.hud.toast('Ground pound'); G.sfx.spin(); return;
     }
-    if (P.capBuf > 0 && !P.capThrown && s !== 'dive' && G.cap.throw()) {
-      P.capBuf = 0; P.capThrown = true; P.throwT = 0;
+    if (P.capBuf > 0 && !P.capThrown && s !== 'dive' && throwCap()) {
+      P.capThrown = true;
       if (P.vel.y < 1.5) P.vel.y = 1.5;
     }
   }
@@ -369,7 +411,7 @@ export function createPlayerSystem(G) {
   // ---------- integration ----------
   function land(impact) {
     const s = P.state, gs = P.ground;
-    P.capThrown = false; P.capBounced = false; P.diveUsed = false; P.landT = 0;
+    P.capThrown = false; P.capBounced = false; P.diveUsed = false; P.twirlUsed = false; P.landT = 0;
     if (s === 'gpFall') {
       if (gs && gs.onPound && gs.onPound(G, P) === 'break') {
         setState('gpFall'); P.onGround = false; P.ground = null; P.vel.y = -32; return;
@@ -444,6 +486,7 @@ export function createPlayerSystem(G) {
         if (!SPECIAL.has(P.state)) integrate(h);
     }
     P.jumpBuf = Math.max(0, P.jumpBuf - h); P.crouchBuf = Math.max(0, P.crouchBuf - h); P.capBuf = Math.max(0, P.capBuf - h);
+    P.spinBuf = Math.max(0, P.spinBuf - h); P.crouchTap = Math.max(0, P.crouchTap - h);
     P.turnRate += (angDiff(P.facing, f0) / h - P.turnRate) * 0.15;
     if (P.pos.y < -20) respawn();
   }

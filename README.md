@@ -21,7 +21,7 @@ A browser prototype of Super Mario Odyssey–style 3D platforming, built with [t
 | P switch | A staircase that only exists for 9 seconds |
 | Warp pipe | Takes you to the top of a 20m lookout tower |
 | Frog capture | Capture the frog to leap a 6.5m cliff |
-| Goomba tower | Capture a Goomba, stack the others, and reach Goombette |
+| Goomba tower | Capture a Goomba, stack the others, and reach Goombette. Towers stay stacked when you let go |
 | Spark pylon | Capture it to zip along the wire to a far tower |
 | Roll ramp | Roll down a slope to build speed |
 
@@ -40,7 +40,10 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 | Cap throw / cap jump | Throw your cap (hold to keep it hovering), then jump or dive into it to bounce |
 | Wall jump | Fall against a wall while holding toward it, then Jump |
 | Ledge grab | Jump at a ledge while holding toward it. Jump to climb up, move sideways to shimmy, Crouch to drop |
-| Roll | Hold Crouch and press Cap. Press Cap again to speed up. You go faster downhill |
+| Roll | Crouch + Cap, a quick tap of Crouch then Cap, or Cap as a ground pound lands. Press Cap again to speed up. You go faster downhill |
+| Spin jump | Spin the stick (or press Q), then Jump. A higher jump with a slow, spinning fall |
+| Twirl | Spin the stick (or press Q) in the air. You spin and float down slowly, once per jump |
+| Spin throw | Spin the stick (or press Q), then press Cap. Cappy circles around you, grabbing coins and captures |
 | Capture | Hit a frog, Goomba or spark pylon with your cap. Crouch to let go |
 
 ## Controls
@@ -52,6 +55,7 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 | Jump | Space | A / B | **Jump** |
 | Crouch | Shift or C | Bumpers / triggers | **Crouch** |
 | Cap | E, F, J or left click | X / Y | **Cap** |
+| Spin | Q, or roll through WASD | Spin the stick, or click a stick | Spin the stick |
 | Restart at checkpoint | R | Select | — |
 | Menu | H or Esc | Start | **?** |
 | Mute | M | — | Speaker button |

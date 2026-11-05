@@ -154,6 +154,12 @@ export class Goomba extends Capturable {
     this.addHat(0.98, 0.72);
   }
   canCapture() { return super.canCapture() && !this.stacked && this.squished <= 0; }
+  // A tower can be hit anywhere along its height.
+  capDist(p) {
+    const dy = p.y - Math.min(Math.max(p.y, this.pos.y + 0.3), this.pos.y + this.H - 0.2);
+    return Math.hypot(p.x - this.pos.x, dy, p.z - this.pos.z);
+  }
+  setStack(list) { this.stack = list; this.H = 0.9 * (1 + list.length); }
   update(h, G) {
     if (this.captured || this.stacked) return;
     if (this.squished > 0) {
@@ -167,9 +173,10 @@ export class Goomba extends Capturable {
     this.stun -= h;
     const P = G.P, dx = P.pos.x - this.pos.x, dz = P.pos.z - this.pos.z, d = Math.hypot(dx, dz);
     const friendly = P.capture instanceof Goomba;
-    let tx, tz, sp = 1.5;
+    const towerSlow = 1 / (1 + this.stack.length * 0.35);
+    let tx, tz, sp = 1.5 * towerSlow;
     if (!friendly && P.state !== 'capture' && P.state !== 'moonGet' && d < 7 && d > 0.01 && this.stun <= 0 && Math.abs(P.pos.y - this.pos.y) < 2) {
-      tx = dx / d; tz = dz / d; sp = 3.3;
+      tx = dx / d; tz = dz / d; sp = 3.3 * towerSlow;
     } else {
       this.retarget -= h;
       if (!this.target || this.retarget <= 0) {
@@ -198,6 +205,13 @@ export class Goomba extends Capturable {
     }
   }
   stomp(G, knock) {
+    // Stomping a tower knocks off the top Goomba; the next one down takes over.
+    if (this.stack.length) {
+      const next = this.stack[0];
+      next.stacked = false; next.setStack(this.stack.slice(1));
+      next.pos.copy(this.pos); next.facing = this.facing; next.vel.set(0, 0, 0); next.stun = 0.6; next.target = null;
+      this.setStack([]);
+    }
     this.squished = 5; G.sfx.stomp();
     G.fx.dust(this.pos.x, this.pos.y, this.pos.z, 8, 2.5, 0.25);
     G.popCoins.pop(this.pos.x, this.pos.y + 0.6, this.pos.z);
@@ -221,24 +235,22 @@ export class Goomba extends Capturable {
   }
   addToStack(o, G) {
     const P = G.P;
-    o.stacked = true; this.stack.push(o);
+    // Landing on a whole tower adds all of it underneath us.
+    const added = [o, ...o.stack];
+    o.setStack([]);
+    for (const g of added) g.stacked = true;
+    this.setStack(this.stack.concat(added));
     P.pos.y = o.pos.y; P.pos.x = o.pos.x; P.pos.z = o.pos.z;
-    P.H = 0.9 * (1 + this.stack.length); P.vel.y = 7;
+    P.H = this.H; P.vel.y = 7;
     G.sfx.stack(); G.hud.toast('Goomba tower ×' + (this.stack.length + 1));
     G.fx.sparkle(P.pos.x, P.pos.y + P.H, P.pos.z, 10, 0xfff2a8);
   }
+  // The tower stays stacked after you let go; you pop out of the top.
   release(G) {
-    const P = G.P, n = this.stack.length;
-    this.stack.forEach((o, i) => {
-      const lvl = n - 1 - i;
-      o.stacked = false; o.stun = 1.5;
-      o.pos.set(P.pos.x + rand(-0.3, 0.3), P.pos.y + 0.9 * lvl, P.pos.z + rand(-0.3, 0.3));
-      const a = rand(0, TAU); o.vel.set(Math.cos(a) * 3, 3, Math.sin(a) * 3);
-    });
-    this.stack = [];
     super.release(G);
-    this.pos.y = P.pos.y + 0.9 * n;
-    return 0.9 * n + 0.5;
+    this.setStack(this.stack);
+    this.target = null; this.retarget = 1.5;
+    return this.H;
   }
   render(dt, time, G) {
     if (this.squished > 0) {
@@ -250,9 +262,9 @@ export class Goomba extends Capturable {
     const P = G.P, cap = this.captured;
     const base = cap ? P.pos : this.pos, hs = cap ? P.hs : Math.hypot(this.vel.x, this.vel.z);
     this.spring(dt);
-    const n = cap ? this.stack.length : 0;
+    const n = this.stack.length;
     // Lag each level of the tower behind the motion so it sways.
-    const vx = cap ? P.vel.x : 0, vz = cap ? P.vel.z : 0;
+    const vx = cap ? P.vel.x : this.vel.x, vz = cap ? P.vel.z : this.vel.z;
     this.sway.x += (-vx * 0.02 - this.sway.x) * damp(5, dt); this.sway.y += (-vz * 0.02 - this.sway.y) * damp(5, dt);
     const yaw = cap ? G.char.yaw : this.facing;
     this.stack.forEach((o, i) => {

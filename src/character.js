@@ -88,7 +88,7 @@ export class Character {
 
     this.cur = { ...REST }; this.tgt = { ...REST };
     this.fp = 0; this.fy = 0; this.phase = 0; this.stepSign = true; this.rollVis = 0;
-    this.sq = 0; this.sqv = 0; this.yaw = 0; this.blinkT = 2; this.blink = 0;
+    this.sq = 0; this.sqv = 0; this.yaw = 0; this.blinkT = 2; this.blink = 0; this.spinA = 0; this.hatPop = 0;
     this.onStep = null;
   }
 
@@ -152,6 +152,10 @@ export class Character {
           T.headY = Math.sin(time * 0.6) * 0.28; T.headX = Math.sin(time * 0.37) * 0.07;
           T.lLegZ = T.rLegZ = 0.06; rate = 10;
         }
+        if (P.spinBuf > 0) {
+          flipY = smooth(1 - P.spinBuf / 0.45) * TAU;
+          T.lArmZ = T.rArmZ = 1.2; T.lArmX = T.rArmX = 0.2;
+        }
         if (P.landT < 0.16) {
           const k = 1 - P.landT / 0.16;
           T.lKnee += 0.9 * k; T.rKnee += 0.9 * k; T.lLegX += 0.45 * k; T.rLegX += 0.45 * k;
@@ -197,6 +201,15 @@ export class Character {
             T.lLegX = 0.95; T.lKnee = 1.45; T.rLegX = -0.25; T.rKnee = 0.5; T.pitch = 0.06; T.headX = -0.15;
           }
         } else fallPose();
+        break;
+      }
+      case 'twirl': case 'spinjump': {
+        // Fast spin with arms flung out; the twirl spins faster than the spin jump.
+        this.spinA += dt * TAU * (s === 'twirl' ? 3.4 : 2.4);
+        flipY = this.spinA;
+        T.lArmZ = T.rArmZ = 1.45; T.lArmX = T.rArmX = 0.25; T.lElbow = T.rElbow = 0.15;
+        T.lLegX = 0.2; T.rLegX = 0.05; T.lKnee = 0.35; T.rKnee = 0.2; T.lLegZ = T.rLegZ = 0.02;
+        T.headX = -0.1; T.y = 0.04; rate = 20;
         break;
       }
       case 'longjump':
@@ -273,8 +286,8 @@ export class Character {
     }
 
     // Cap throw: right arm swings through; in the air the whole body spins.
-    if (P.throwT < 0.3 && ['ground', 'air', 'crouch', 'launch', 'sideflip', 'capbounce'].includes(s)) {
-      const k = P.throwT / 0.3;
+    if (P.throwT < 0.22 && ['ground', 'air', 'crouch', 'launch', 'sideflip', 'capbounce'].includes(s)) {
+      const k = P.throwT / 0.22;
       T.rArmX = lerp(-1.1, 1.9, smooth(k)); T.rArmZ = lerp(1.0, 0.4, k); T.rElbow = 0.25;
       T.spine += Math.sin(k * PI) * 0.15;
       if (s !== 'ground' && s !== 'crouch' && flipY === null) flipY = smooth(k) * TAU;
@@ -296,6 +309,11 @@ export class Character {
     this.blink -= dt;
     const ey = this.blink > 0 ? 0.12 : 1;
     for (const e of this.eyes) e.scale.y = ey;
+
+    // Hat pops when Cappy lands back on your head.
+    this.hatPop = Math.max(0, this.hatPop - dt * 3.5);
+    const hp = this.hatPop;
+    this.hat.scale.set(0.78 * (1 + Math.sin(hp * PI * 3) * hp * 0.35), 0.78 * (1 - Math.sin(hp * PI * 3) * hp * 0.3), 0.78 * (1 + Math.sin(hp * PI * 3) * hp * 0.35));
 
     this.yaw += angDiff(P.facing, this.yaw) * damp(s === 'ground' ? 26 : 40, dt);
     this.root.rotation.y = this.yaw;

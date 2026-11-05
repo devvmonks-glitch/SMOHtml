@@ -56,6 +56,8 @@ export const sfx = {
   },
   skid() { noise(0.28, 2600, 900, 0.07, 3); },
   spin() { noise(0.25, 600, 2600, 0.08, 2); },
+  spinJump() { tone(330, 990, 0.25, 'triangle', 0.09); noise(0.4, 500, 3500, 0.07, 3); [1319, 1568, 1976].forEach((f, i) => tone(f, f, 0.08, 'sine', 0.03, 0.08 + i * 0.06)); },
+  twirl() { noise(0.5, 1800, 700, 0.08, 4); tone(880, 660, 0.3, 'sine', 0.04); },
   pound() { tone(700, 150, 0.22, 'triangle', 0.08); },
   poundLand() { noise(0.35, 300, 60, 0.6, 0.7, 0, 'lowpass'); tone(110, 45, 0.3, 'sine', 0.35); },
   dive() { noise(0.18, 1200, 3000, 0.06, 1.5); tone(500, 300, 0.12, 'triangle', 0.05); },

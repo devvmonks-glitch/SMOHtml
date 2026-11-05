@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=0.2.1">
+<link rel="stylesheet" href="style.css?v=0.2.2">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -62,14 +62,17 @@
         <dt>Cap jump</dt><dd>Throw your cap, then jump or dive into it. Hold Cap to keep it hovering</dd>
         <dt>Wall jump</dt><dd>Fall against a wall while holding toward it, then Jump</dd>
         <dt>Ledge grab</dt><dd>Jump at a ledge and hold toward it. Jump to climb, move to shimmy</dd>
-        <dt>Roll</dt><dd>Hold Crouch and press Cap. Press Cap again to speed up, faster downhill</dd>
+        <dt>Roll</dt><dd>Crouch + Cap (or tap Crouch then Cap, or Cap as a ground pound lands). Cap again to speed up, faster downhill</dd>
+        <dt>Spin jump</dt><dd>Spin the stick (or press Q), then Jump: a higher, floaty spinning jump</dd>
+        <dt>Twirl</dt><dd>Spin the stick (or press Q) in the air to spin and float down slowly</dd>
+        <dt>Spin throw</dt><dd>Spin the stick (or press Q), then Cap: Cappy circles around you</dd>
       </dl>
     </section>
     <section data-panel="things" hidden>
       <dl class="moves">
         <dt>Captures</dt><dd>Hit a frog, Goomba or spark pylon with your cap to take control. Crouch to let go</dd>
         <dt>Frog</dt><dd>Hops around and jumps far higher than you can</dd>
-        <dt>Goomba</dt><dd>Land on other Goombas to stack them into a tower</dd>
+        <dt>Goomba</dt><dd>Land on other Goombas to stack them into a tower. The tower stays stacked when you let go</dd>
         <dt>Spark pylon</dt><dd>Zips you along its wire to the other end</dd>
         <dt>Jump flower</dt><dd>Land on it to launch. Jump or pound as you land for extra height</dd>
         <dt>Blocks</dt><dd>Hit ? blocks from below. Bricks break from below or with a ground pound</dd>
@@ -88,6 +91,7 @@
           <tr><td>Jump</td><td>Space</td><td>A / B</td></tr>
           <tr><td>Crouch</td><td>Shift or C</td><td>Bumpers / triggers</td></tr>
           <tr><td>Cap</td><td>E, F, J or click</td><td>X / Y</td></tr>
+          <tr><td>Spin</td><td>Q or roll through WASD</td><td>Spin the stick, or click a stick</td></tr>
           <tr><td>Restart</td><td>R</td><td>Select</td></tr>
           <tr><td>Menu</td><td>H or Esc</td><td>Start</td></tr>
           <tr><td>Mute</td><td>M</td><td></td></tr>
@@ -122,6 +126,6 @@
   }, 12000);
 })();
 </script>
-<script src="game.js?v=0.2.1"></script>
+<script src="game.js?v=0.2.2"></script>
 </body>
 </html>

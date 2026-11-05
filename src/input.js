@@ -10,6 +10,8 @@ export function createInput(G, canvas, onPress) {
   const keys = new Set(), kb = { jump: false, crouch: false, cap: false }, tc = { x: 0, y: 0, jump: false, crouch: false, cap: false };
   const padPrev = {};
   let mouseCap = false;
+  // Spinning the stick (or rolling through WASD) fires 'spin' for spin jumps, twirls and spin throws.
+  let spinAcc = 0, lastAng = null, spinCD = 0;
   const fire = n => { initAudio(); onPress(n); };
 
   addEventListener('keydown', e => {
@@ -21,6 +23,7 @@ export function createInput(G, canvas, onPress) {
     if (JUMPK.includes(e.code)) { kb.jump = true; fire('jump'); }
     if (CROUCHK.includes(e.code)) { kb.crouch = true; fire('crouch'); }
     if (CAPK.includes(e.code)) { kb.cap = true; fire('cap'); }
+    if (e.code === 'KeyQ') fire('spin');
     if (e.code === 'KeyR') fire('restart');
     if (e.code === 'KeyM') fire('mute');
   });
@@ -85,7 +88,7 @@ export function createInput(G, canvas, onPress) {
   const endStick = e => { if (e.pointerId !== stickId) return; stickId = null; tc.x = tc.y = 0; stick.style.display = 'none'; knob.style.transform = ''; };
   zone.addEventListener('pointerup', endStick); zone.addEventListener('pointercancel', endStick);
 
-  function poll() {
+  function poll(dt = 1 / 60) {
     let px = 0, py = 0, pj = false, pc = false, pk = false;
     st.padRX = st.padRY = 0;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -97,7 +100,7 @@ export function createInput(G, canvas, onPress) {
       st.padRX = dz(gp.axes[2] || 0); st.padRY = dz(gp.axes[3] || 0);
       if (b(12)) py = 1; if (b(13)) py = -1; if (b(14)) px = -1; if (b(15)) px = 1;
       pj = b(0) || b(1); pk = b(2) || b(3); pc = b(4) || b(5) || b(6) || b(7);
-      const edges = { jump: pj, cap: pk, crouch: pc, restart: b(8), menu: b(9) };
+      const edges = { jump: pj, cap: pk, crouch: pc, restart: b(8), menu: b(9), spin: b(10) || b(11) };
       for (const n in edges) {
         if (edges[n] && !padPrev[n]) {
           if (G.paused) { if (n === 'menu' || n === 'jump') fire('menu'); } else fire(n);
@@ -111,6 +114,20 @@ export function createInput(G, canvas, onPress) {
     const m = Math.hypot(ix, iy);
     if (m > 1) { ix /= m; iy /= m; }
     st.mx = ix; st.my = iy;
+
+    if (Math.hypot(ix, iy) > 0.6) {
+      const a = Math.atan2(ix, iy);
+      if (lastAng !== null) {
+        let d = a - lastAng;
+        if (d > Math.PI) d -= Math.PI * 2;
+        if (d < -Math.PI) d += Math.PI * 2;
+        if (d && Math.sign(d) !== Math.sign(spinAcc) && Math.abs(spinAcc) > 0.5) spinAcc *= 0.3;
+        spinAcc += d;
+      }
+      lastAng = a;
+    } else lastAng = null;
+    spinAcc *= Math.exp(-1.0 * dt); spinCD -= dt;
+    if (Math.abs(spinAcc) > 4.8 && spinCD <= 0) { spinAcc = 0; spinCD = 0.5; if (!G.paused) fire('spin'); }
     st.jump = kb.jump || tc.jump || pj;
     st.crouch = kb.crouch || tc.crouch || pc;
     st.cap = kb.cap || tc.cap || pk || mouseCap;

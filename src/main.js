@@ -132,6 +132,8 @@ async function start() {
     const s = P.state;
     if (s === 'capture') return P.capture.canRelease ? 'Crouch to release' : '';
     if (s === 'ledge') return 'Jump to climb · Crouch to let go';
+    if (s === 'crouch') return P.hs > 3.5 ? 'Jump: long jump · Cap: roll' : 'Jump: backflip · Cap: roll';
+    if (s === 'roll') return 'Cap to speed up · Jump to roll jump';
     if (P.onGround && P.ground && P.ground.pipe) return 'Crouch to enter the pipe';
     if (s === 'ground' || s === 'air') {
       for (const c of G.captures) if (c.canCapture() && c.pos.distanceTo(P.pos) < 4.5) return 'Throw your cap to capture';
@@ -142,7 +144,7 @@ async function start() {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     G.time += dt;
-    G.input.poll();
+    G.input.poll(dt);
     G.camRig.applyInput(dt, now);
     computeW();
     if (!G.paused) {
@@ -160,15 +162,16 @@ async function start() {
     C.root.visible = P.state !== 'capture' && !(P.invuln > 0 && Math.sin(G.time * 40) > 0);
     C.hat.visible = !G.cap.active && P.state !== 'capture';
     C.animate(P, rdt, G.time, G.camRig.yaw);
-    if (G.cap.active) {
-      G.capMesh.visible = true; G.capMesh.position.copy(G.cap.pos);
-      G.capMesh.rotation.y += (G.cap.phase === 'hover' ? 14 : 26) * rdt; G.capMesh.rotation.x = 0.12;
-    } else G.capMesh.visible = false;
+    G.cap.render(G.capMesh, rdt, G.time);
     for (const o of G.objects) if (o.render) o.render(rdt, G.time, G);
     for (const c of G.captures) c.render(rdt, G.time, G);
 
     dustT -= rdt;
     if (dustT <= 0 && ['skid', 'diveSlide', 'roll'].includes(P.state) && P.hs > 2) { dustT = 0.05; G.fx.dust(P.pos.x, P.pos.y, P.pos.z, 1, 1, 0.2); }
+    if (dustT <= 0 && (P.state === 'twirl' || P.state === 'spinjump')) {
+      dustT = 0.03; const a = G.time * 20;
+      G.fx.spawn(P.pos.x + Math.sin(a) * 0.8, P.pos.y + 0.9, P.pos.z + Math.cos(a) * 0.8, 0, -0.5, 0, 0.35, 0.1, 0, 0xbff4ff, 0, 1);
+    }
     if (dustT <= 0 && P.state === 'wall') { dustT = 0.08; G.fx.dust(P.pos.x - P.wallN.x * 0.35, P.pos.y + 1.2, P.pos.z - P.wallN.z * 0.35, 1, 0.4, 0.12); }
     G.fx.update(rdt);
 
