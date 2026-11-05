@@ -1,6 +1,6 @@
 # SMOHtml — Hop Lab
 
-A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/). You play a little character with a throwable cap in a **dev room**: a grid-textured test level with 15 stations. Each station shows off one move, object or capture, and each one hides a Power Moon.
+A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 15 stations on paved pads among grass, trees and stone walls. Each station shows off one move, object or capture, and each one hides a Power Moon.
 
 **Play it in your browser:** https://devvmonks-glitch.github.io/SMOHtml/
 
@@ -67,6 +67,7 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 - The character is a jointed rig, posed procedurally. Every move has its own pose, the joints blend between poses, and landings and jumps get springy squash and stretch.
 - The camera holds its height through jumps instead of bobbing, swings behind you as you run, and pulls in when a wall gets in the way.
 - All sound effects are synthesised with Web Audio, so there are no audio files.
+- The painted look is done in the material shaders (`src/paint.js`): light falls off in soft bands that wobble along brush strokes, shadows lean cool lilac and highlights warm, pigment varies across surfaces, and edges darken softly. The sky, world textures and paper grain are painted on canvases at startup, so there are no image files either.
 
 ## Playing locally
 
@@ -125,6 +126,8 @@ src/level.js      the dev-room layout
 src/input.js      keyboard, mouse, gamepad and touch
 src/audio.js      synthesised sound effects
 src/fx.js         particles and shockwave rings
+src/paint.js      painterly shading, painted sky and paper grain
+src/decor.js      trees, bushes, flowers, rocks, lamps, fences and hills
 src/hud.js        on-screen counters, toasts and banners
 src/models.js     loads the Blender models and swaps them into the rig
 assets/models.glb exported models

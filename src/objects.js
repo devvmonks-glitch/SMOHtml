@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { std } from './character.js';
-import { gridMat, worldUV, canvasTex, labelTex } from './materials.js';
+import { themeMat, worldUV, canvasTex, labelTex } from './materials.js';
 import { PI, TAU, smooth, damp } from './util.js';
 import { model } from './models.js';
 
@@ -408,8 +408,8 @@ export class Mover {
     this.a = a.clone(); this.b = b.clone(); this.period = period; this.time = phase * period; this.c = a.clone();
     this.solid = G.world.box(a.x, a.y, a.z, size.x, size.y, size.z, { noLedge: true });
     const geo = worldUV(new THREE.BoxGeometry(size.x, size.y, size.z), 0, 0, 0);
-    this.mesh = shadowed(new THREE.Mesh(geo, gridMat(color))); this.mesh.position.copy(a); G.scene.add(this.mesh);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x1d2a44, transparent: true, opacity: 0.25 })); this.mesh.add(e);
+    const tint = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.45).getHex();
+    this.mesh = shadowed(new THREE.Mesh(geo, themeMat('wood', tint))); this.mesh.position.copy(a); G.scene.add(this.mesh);
     G.objects.push(this);
     this.update(0, G);
   }
@@ -428,7 +428,8 @@ export class Spinner {
     this.speed = speed; this.angle = 0;
     this.solid = G.world.cyl(x, z, r, y - 0.5, y, { noLedge: true });
     this.group = new THREE.Group(); this.group.position.set(x, y, z); G.scene.add(this.group);
-    const disc = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.5, 40), std(0xffa24a, { roughness: 0.6 }))); disc.position.y = -0.25; this.group.add(disc);
+    const discGeo = new THREE.CylinderGeometry(r, r, 0.5, 40); discGeo.rotateX(0);
+    const disc = shadowed(new THREE.Mesh(worldUV(discGeo, 0, 0, 0), themeMat('wood', 0xffc890))); disc.position.y = -0.25; this.group.add(disc);
     for (let i = 0; i < 4; i++) {
       const s = new THREE.Mesh(new THREE.BoxGeometry(r * 2 - 0.2, 0.02, 0.3), std(0xfff3d6)); s.position.y = 0.005; s.rotation.y = i * PI / 4; s.receiveShadow = true; this.group.add(s);
     }
@@ -446,12 +447,12 @@ export class Spinner {
 export class Sign {
   constructor(G, x, y, z, rotY, title, lines = [], accent) {
     const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotY; G.scene.add(g);
-    const wood = std(0x5b6578, { roughness: 0.6 });
+    const wood = std(0x7a5232, { roughness: 0.85 });
     for (const sx of [-1.05, 1.05]) { const p = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.6, 10), wood)); p.position.set(sx, 0.8, -0.03); g.add(p); }
     const board = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.46), new THREE.MeshStandardMaterial({ map: labelTex(title, lines, accent), roughness: 0.6 }));
     // No shadow: seen through the gap under the board it reads as a floating black box.
     board.position.y = 1.85; g.add(board);
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.46), std(0x1d2a44)); back.rotation.y = PI; back.position.set(0, 1.85, -0.01); g.add(back);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.46), std(0x8a5f38, { roughness: 0.9 })); back.rotation.y = PI; back.position.set(0, 1.85, -0.01); g.add(back);
   }
 }
 

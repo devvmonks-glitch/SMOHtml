@@ -12,8 +12,8 @@ import { createCap } from './cap.js';
 import { CameraRig } from './camera.js';
 import { PopCoins } from './objects.js';
 import { buildLevel } from './level.js';
-import { canvasTex } from './materials.js';
 import { loadModels, loadedParts } from './models.js';
+import { paintScene, paintedSky, paperDataURL } from './paint.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -30,22 +30,20 @@ async function start() {
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = canvasTex(2, 256, (g) => {
-    const gr = g.createLinearGradient(0, 0, 0, 256);
-    gr.addColorStop(0, '#4ea8f5'); gr.addColorStop(0.55, '#9fd4ff'); gr.addColorStop(1, '#e4f4ff');
-    g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
-  });
-  scene.fog = new THREE.Fog(0xcfe9ff, 70, 190);
+  // Painted sky and a soft lilac haze, like aerial perspective in a painting.
+  scene.background = paintedSky();
+  scene.fog = new THREE.Fog(0xcdd6f0, 55, 175);
+  document.getElementById('paper').style.backgroundImage = `url(${paperDataURL()})`;
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.45;
-  scene.add(new THREE.HemisphereLight(0xe3f3ff, 0x9a8f7a, 1.1));
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6);
+  scene.environmentIntensity = 0.35;
+  scene.add(new THREE.HemisphereLight(0xcadcff, 0xa48f6c, 1.15));
+  const sun = new THREE.DirectionalLight(0xffdfae, 2.6);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
   Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 120 });
   scene.add(sun, sun.target);
   // A cool light from behind picks out silhouettes so characters don't melt into the floor.
-  const rim = new THREE.DirectionalLight(0xbfe0ff, 1.1);
+  const rim = new THREE.DirectionalLight(0xb8c4ff, 0.9);
   scene.add(rim, rim.target);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 400);
   const draw = () => renderer.render(scene, camera);
@@ -71,6 +69,7 @@ async function start() {
     if (G.moonsGot === G.moons.length) setTimeout(() => G.hud.toast('Every moon found! Nice moves.'), 2600);
   };
   buildLevel(G);
+  paintScene(scene);
   G.hud.setMoons(0, G.moons.length);
 
   // Footsteps and running dust.

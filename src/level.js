@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { gridMat, worldUV, canvasTex } from './materials.js';
+import { worldUV, themeMat } from './materials.js';
+import { decorate } from './decor.js';
 import { PI, TAU } from './util.js';
 import { Coin, Moon, Flower, Spring, QBlock, Brick, Stake, PSwitch, Checkpoint, Pipe, Mover, Spinner, Sign, Cloud } from './objects.js';
 import { Frog, Goomba, Goombette, Pylon, wireMesh } from './captures.js';
@@ -10,20 +11,28 @@ const C = {
 };
 const MOON = { gold: 0xffd23f, cyan: 0x5fe0ff, pink: 0xff7fc8, orange: 0xffa03f, green: 0x7dff8a, purple: 0xc49bff, red: 0xff6b6b };
 
-// A solid grid block. y0 is the bottom.
+// What each station colour is built from: [top surface, sides, tint for the sides].
+const LOOK = {
+  [C.floor]: ['grass', 'dirt'], [C.wall]: ['stone', 'stone', 0xe6dccb], [C.white]: ['grass', 'stone'],
+  [C.orange]: ['grass', 'brick'], [C.yellow]: ['wood', 'wood', 0xffe6b0], [C.pink]: ['grass', 'plaster', 0xffc6d6],
+  [C.purple]: ['stone', 'stone', 0xd4c2f0], [C.blue]: ['wood', 'wood', 0xa9cdf0], [C.green]: ['grass', 'dirt'],
+  [C.teal]: ['grass', 'stone', 0xb4e0d6], [C.red]: ['brick', 'brick'], [C.grey]: ['stone', 'stone'],
+};
+
+// A solid block of painted grass, stone, brick, wood or plaster. y0 is the bottom.
 function block(G, x, y0, z, sx, sy, sz, color, opts = {}) {
   const cy = y0 + sy / 2;
   const s = G.world.box(x, cy, z, sx, sy, sz, opts);
   const geo = worldUV(new THREE.BoxGeometry(sx, sy, sz), x, cy, z);
-  const m = new THREE.Mesh(geo, gridMat(color));
+  const [top, side, tint = 0xffffff] = LOOK[color] || ['stone', 'stone', color];
+  const sideM = themeMat(side, tint), topM = top === 'grass' ? themeMat('grass') : themeMat(top, tint);
+  // BoxGeometry face order: +x, -x, +y, -y, +z, -z.
+  const m = new THREE.Mesh(geo, [sideM, sideM, topM, sideM, sideM, sideM]);
   m.position.set(x, cy, z); m.castShadow = !opts.noShadow; m.receiveShadow = true;
-  if (!opts.noEdges) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat()));
   G.scene.add(m);
   s.mesh = m;
   return s;
 }
-let _edge = null;
-const edgeMat = () => _edge || (_edge = new THREE.LineBasicMaterial({ color: 0x1d2a44, transparent: true, opacity: 0.22 }));
 
 function coinLine(G, a, b, n) {
   for (let i = 0; i < n; i++) { const t = n === 1 ? 0 : i / (n - 1); new Coin(G, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t); }
@@ -37,14 +46,13 @@ function coinArc(G, a, b, n, height) {
     new Coin(G, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + Math.sin(t * PI) * height, a[2] + (b[2] - a[2]) * t);
   }
 }
-// Painted floor zone so each station reads at a glance.
+// A paved pad under each station, faintly tinted with the station colour.
 function zone(G, x, z, w, d, color) {
-  const tex = canvasTex(64, 64, (g) => {
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64);
-    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 6; g.strokeRect(0, 0, 64, 64);
-  });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color, map: tex, roughness: 0.9, transparent: true, opacity: 0.45, polygonOffset: true, polygonOffsetFactor: -2 }));
-  m.rotation.x = -PI / 2; m.position.set(x, 0.005, z); m.receiveShadow = true;
+  const geo = new THREE.PlaneGeometry(w, d); geo.rotateX(-PI / 2);
+  worldUV(geo, x, 0, z);
+  const tint = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.72);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: tint, map: themeMat('path').map, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.position.set(x, 0.006, z); m.receiveShadow = true;
   G.scene.add(m);
 }
 
@@ -52,9 +60,9 @@ export function buildLevel(G) {
   const W = G.world;
 
   // ---------- room shell ----------
-  block(G, 0, -2, 0, 164, 2, 164, C.floor, { noEdges: true, noShadow: true, noCam: true });
+  block(G, 0, -2, 0, 164, 2, 164, C.floor, { noShadow: true, noCam: true });
   for (const [x, z, sx, sz] of [[0, -82, 164, 2], [0, 82, 164, 2], [-82, 0, 2, 164], [82, 0, 2, 164]])
-    block(G, x, 0, z, sx, 8, sz, C.wall, { noLedge: true, noShadow: true, noEdges: true });
+    block(G, x, 0, z, sx, 8, sz, C.wall, { noLedge: true, noShadow: true });
   for (let i = 0; i < 10; i++) new Cloud(G, -110 + i * 24, 34 + Math.random() * 14, -70 + Math.random() * 140, 3 + Math.random() * 2.5);
 
   // ---------- plaza ----------
@@ -208,10 +216,12 @@ export function buildLevel(G) {
   rampGeo.setAttribute('uv', new THREE.Float32BufferAttribute([-9, 21, -5, 21, -5, 29, -9, 29, -9, 29, -5, 29], 2));
   rampGeo = rampGeo.toNonIndexed();
   rampGeo.computeVertexNormals();
-  const rampMesh = new THREE.Mesh(rampGeo, gridMat(C.orange)); rampMesh.castShadow = true; rampMesh.receiveShadow = true; G.scene.add(rampMesh);
+  const rampMesh = new THREE.Mesh(rampGeo, themeMat('wood', 0xffd9b0)); rampMesh.castShadow = true; rampMesh.receiveShadow = true; G.scene.add(rampMesh);
   block(G, -14, 0, 62, 8, 6, 8, C.orange);
   coinLine(G, [-14, 1, 44], [-14, 5.5, 56], 7);
   new Sign(G, -6.5, 0, 40, -PI / 5, 'ROLL RAMP', ['Climb up, then hold Crouch', 'and press Cap to roll down.'], '#ff9a52');
+
+  decorate(G);
 
   // ---------- warp list ----------
   G.stations = [
