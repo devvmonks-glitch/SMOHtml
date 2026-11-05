@@ -31,11 +31,12 @@ async function start() {
   await loadModels();
 
   const canvas = document.getElementById('c');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+  // No preserveDrawingBuffer: the photo button draws a frame right before reading it back.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   // Graphics: High (sharp, shadows) or Low (for slower devices). Touch devices start on Low.
   const gfx = setting('gfx', matchMedia('(pointer: coarse)').matches ? 'low' : 'high');
   const low = gfx === 'low';
-  renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 1.5)); // 2x screens shade 4x the pixels
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = !low; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -84,10 +85,17 @@ async function start() {
     if (moon.grand) G.hud.toast('A Grand Moon!');
     if (G.moonsGot === G.moons.length) setTimeout(() => G.hud.toast('Every moon found! Nice moves.'), 2600);
   };
-  buildLevel(G);
-  G.flat = createFlat(G);
-  buildKingdom(G);
-  buildDesert(G);
+  // Each place is built into its own group, and only the one you're in is drawn: the
+  // others are 300m away, lost in the haze, but would still cost a draw call per mesh.
+  const place = (build) => {
+    const before = new Set(scene.children); build();
+    const root = new THREE.Group();
+    for (const o of scene.children.slice()) if (!before.has(o)) root.add(o);
+    scene.add(root);
+    return root;
+  };
+  const lab = place(() => { buildLevel(G); G.flat = createFlat(G); });
+  for (const build of [buildKingdom, buildDesert]) { const root = place(() => build(G)); G.kingdoms[G.kingdoms.length - 1].root = root; }
   const prints = new Footprints(G);
   G.trials = createTrials(G);
   paintScene(scene);
@@ -266,7 +274,7 @@ async function start() {
       const n = Math.max(1, Math.ceil(dt / STEP - 1e-6)), h = dt / n;
       for (let i = 0; i < n; i++) {
         for (const o of G.objects) if (o.update) o.update(h, G);
-        for (const c of G.captures) c.update(h, G);
+        for (const c of G.captures) if (Math.abs(c.pos.x - P.pos.x) < 150) c.update(h, G);
         G.player.step(h);
         G.cap.update(h);
         G.trials.update(h);
@@ -320,6 +328,8 @@ async function start() {
         G.hud.kingdom(kingdom ? 'Kingdom of' : 'Back to the', region, `${got} of ${list.length} Power Moons`);
       }
       G.region = region;
+      lab.visible = !kingdom;
+      for (const k of G.kingdoms) k.root.visible = k === kingdom;
       // Falling or pressing R brings you back somewhere in the place you're in.
       if (kingdomAt(G.spawn.pos.x) !== kingdom) { G.spawn = kingdom ? kingdom.spawn : SPAWN; G.spawnFlag = null; }
     }
@@ -331,6 +341,17 @@ async function start() {
     draw();
   }
   G.camRig.snap(SPAWN.facing + PI);
+  // Compile every shader, then draw everything once with culling off (uploading every
+  // mesh and texture, and the shadow shaders too), behind the loading screen, so the game
+  // doesn't stall the first time you see each place. All places are visible until the
+  // first frame picks a region.
+  try {
+    await renderer.compileAsync(scene, camera);
+    const culled = [];
+    scene.traverse((o) => { if (o.frustumCulled) { o.frustumCulled = false; culled.push(o); } });
+    draw();
+    for (const o of culled) o.frustumCulled = true;
+  } catch { /* things just compile on first sight instead */ }
   document.getElementById('loading').remove();
   setPaused(true);
   requestAnimationFrame(frame);
