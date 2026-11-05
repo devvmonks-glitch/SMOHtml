@@ -134,7 +134,7 @@ async function start() {
     if (s === 'ledge') return 'Jump to climb · Crouch to let go';
     if (s === 'crouch') return P.hs > 3.5 ? 'Jump: long jump · Cap: roll' : 'Jump: backflip · Cap: roll';
     if (s === 'roll') return 'Cap to speed up · Jump to roll jump';
-    if (P.onGround && P.ground && P.ground.pipe) return 'Crouch to enter the pipe';
+    if (P.onGround && P.ground && P.ground.pipe) return 'Crouch or ground pound to enter the pipe';
     if (s === 'ground' || s === 'air') {
       for (const c of G.captures) if (c.canCapture() && c.pos.distanceTo(P.pos) < 4.5) return 'Throw your cap to capture';
     }

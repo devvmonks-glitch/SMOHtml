@@ -131,7 +131,7 @@ export function buildLevel(G) {
   pipeA.link = pipeB; pipeB.link = pipeA;
   new Moon(G, -44, 21.6, -42, 'Pipe Dream Lookout', { color: MOON.red });
   new Checkpoint(G, -42.6, 20, -38.6, 'Lookout', PI / 4);
-  new Sign(G, -14, 0, 17, 0, 'WARP PIPE', ['Stand on it and Crouch.'], '#8fdc7a');
+  new Sign(G, -14, 0, 17, 0, 'WARP PIPE', ['Crouch on it, or ground', 'pound onto it.'], '#8fdc7a');
 
   // ---------- south-west: captures ----------
   // frog pond and cliff

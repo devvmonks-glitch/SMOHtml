@@ -19,7 +19,7 @@ A browser prototype of Super Mario Odyssey–style 3D platforming, built with [t
 | ? blocks and bricks | Coin blocks, plus a brick pile you pound through to find a moon |
 | Ground-pound post | Pound it flat to reveal a moon |
 | P switch | A staircase that only exists for 9 seconds |
-| Warp pipe | Takes you to the top of a 20m lookout tower |
+| Warp pipe | Crouch on it or ground pound onto it to reach the top of a 20m lookout tower |
 | Frog capture | Capture the frog to leap a 6.5m cliff |
 | Goomba tower | Capture a Goomba, stack the others, and reach Goombette. Towers stay stacked when you let go |
 | Spark pylon | Capture it to zip along the wire to a far tower |

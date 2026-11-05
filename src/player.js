@@ -413,6 +413,13 @@ export function createPlayerSystem(G) {
     const s = P.state, gs = P.ground;
     P.capThrown = false; P.capBounced = false; P.diveUsed = false; P.twirlUsed = false; P.landT = 0;
     if (s === 'gpFall') {
+      // Pounding onto a pipe sends you straight down it.
+      const pipe = gs && gs.pipe;
+      if (pipe && pipe.link && Math.hypot(P.pos.x - pipe.x, P.pos.z - pipe.z) < 0.9) {
+        G.fx.ring(P.pos.x, P.pos.y, P.pos.z, 2.2, 0xffffff, 0.35); G.camRig.addShake(0.2);
+        enterPipe(pipe); P.t = 0.15; // already partway in from the impact
+        return;
+      }
       if (gs && gs.onPound && gs.onPound(G, P) === 'break') {
         setState('gpFall'); P.onGround = false; P.ground = null; P.vel.y = -32; return;
       }
