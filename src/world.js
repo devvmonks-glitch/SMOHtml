@@ -6,7 +6,18 @@ export const STEP = 0.42;   // ledges this high are stepped onto automatically
 export const SNAP = 0.45;   // how far down we stick to the ground when walking off slopes/steps
 
 export class World {
-  constructor() { this.solids = []; this.ramps = []; }
+  constructor() { this.solids = []; this.ramps = []; this.waters = []; }
+
+  // A box of water; `surface` is its top.
+  water(x0, x1, y0, y1, z0, z1) {
+    const w = { min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 }, surface: y1 };
+    this.waters.push(w);
+    return w;
+  }
+  waterAt(x, y, z) {
+    for (const w of this.waters) if (x > w.min.x && x < w.max.x && z > w.min.z && z < w.max.z && y > w.min.y && y < w.max.y) return w;
+    return null;
+  }
 
   box(cx, cy, cz, sx, sy, sz, opts = {}) {
     const s = Object.assign({

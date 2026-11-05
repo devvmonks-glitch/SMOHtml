@@ -13,7 +13,12 @@ import { CameraRig } from './camera.js';
 import { PopCoins } from './objects.js';
 import { buildLevel } from './level.js';
 import { loadModels, loadedParts } from './models.js';
-import { paintScene, paintedSky, paperDataURL } from './paint.js';
+import { paintScene, paintedSky, paperDataURL, paintUniforms } from './paint.js';
+import { Footprints } from './decor.js';
+import { save, setting, setSetting } from './save.js';
+import { updateMusic, setMusic, musicOn } from './music.js';
+import { createTrials } from './trial.js';
+import { createFlat } from './flat.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -24,10 +29,13 @@ async function start() {
   await loadModels();
 
   const canvas = document.getElementById('c');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+  // Graphics: High (sharp, shadows) or Low (for slower devices). Touch devices start on Low.
+  const gfx = setting('gfx', matchMedia('(pointer: coarse)').matches ? 'low' : 'high');
+  const low = gfx === 'low';
+  renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = !low; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   // Painted sky and a soft lilac haze, like aerial perspective in a painting.
@@ -50,7 +58,7 @@ async function start() {
 
   const G = {
     scene, world: new World(), fx: new FX(scene), sfx, hud: createHud(), objects: [], captures: [], moons: [], checkpoints: [],
-    spawn: SPAWN, spawnFlag: null, coins: 0, moonsGot: 0, time: 0, paused: true, W: null,
+    spawn: SPAWN, spawnFlag: null, coins: 0, moonsGot: 0, time: 0, paused: true, W: null, coinList: [], zones: [], low,
   };
   G.input = createInput(G, canvas, onPress);
   G.P = createPlayer(SPAWN.pos, SPAWN.facing);
@@ -60,20 +68,39 @@ async function start() {
   G.camRig = new CameraRig(camera, G);
   G.player = createPlayerSystem(G);
   G.popCoins = new PopCoins(G);
-  G.addCoins = n => { G.coins += n; G.hud.setCoins(G.coins); };
-  G.onMoon = (moon) => {
+  G.addCoins = (n, coin) => {
+    G.coins += n; G.hud.setCoins(G.coins);
+    if (coin && coin.id !== undefined) save.add('coins', coin.id); else save.addExtra(n);
+  };
+  // noPose: award without the celebration pose (used inside the 8-bit wall).
+  G.onMoon = (moon, noPose) => {
     if (G.P.capture) G.player.endCapture(true);
-    G.moonsGot++; G.player.moonGet(moon);
+    G.moonsGot++; save.add('moons', moon.name); G.trials.finish(moon);
+    if (!noPose) G.player.moonGet(moon);
     G.hud.setMoons(G.moonsGot, G.moons.length); G.hud.banner(moon.name); sfx.moon();
-    const p = moon.group.position; G.fx.sparkle(p.x, p.y, p.z, 30, 0xfff3a0);
+    const p = moon.group.position; if (!noPose) G.fx.sparkle(p.x, p.y, p.z, 30, 0xfff3a0);
+    if (moon.grand) G.hud.toast('A Grand Moon!');
     if (G.moonsGot === G.moons.length) setTimeout(() => G.hud.toast('Every moon found! Nice moves.'), 2600);
   };
   buildLevel(G);
+  G.flat = createFlat(G);
+  const prints = new Footprints(G);
+  G.trials = createTrials(G);
   paintScene(scene);
-  G.hud.setMoons(0, G.moons.length);
+  // Restore progress from earlier visits.
+  for (const m of G.moons) if (save.has('moons', m.name)) { m.got = true; m.group.visible = false; G.moonsGot++; }
+  for (const c of G.coinList) if (save.has('coins', c.id)) { c.got = true; c.mesh.visible = false; }
+  G.flat.paint();
+  G.coins = save.data.coins.length + save.data.extra;
+  G.hud.setMoons(G.moonsGot, G.moons.length); G.hud.setCoins(G.coins);
 
   // Footsteps and running dust.
-  G.char.onStep = (run) => { sfx.step(); if (run > 0.75) G.fx.dust(G.P.pos.x, G.P.pos.y, G.P.pos.z, 1, 0.6, 0.14); };
+  G.char.onStep = (run) => {
+    sfx.step();
+    if (run > 0.75) G.fx.dust(G.P.pos.x, G.P.pos.y, G.P.pos.z, 1, 0.6, 0.14);
+    const gr = G.P.ground;
+    if (G.P.pos.y < 0.05 && gr && gr.max && gr.max.y === 0 && prints) prints.stamp(G.P.pos.x, G.P.pos.z, G.P.facing);
+  };
 
   const blob = new THREE.Mesh(new THREE.CircleGeometry(0.45, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
   blob.rotation.x = -PI / 2; scene.add(blob);
@@ -87,13 +114,60 @@ async function start() {
     else { G.P.jumpBuf = G.P.crouchBuf = G.P.capBuf = 0; lockHint.hidden = isTouch() || G.input.st.locked; }
   }
   function onPress(n) {
+    if (n === 'photo') { setPhoto(!G.photo); return; }
+    if (G.photo) return;
     if (n === 'menu') { setPaused(!G.paused); return; }
+    if (n === 'music') { toggleMusic(); return; }
     if (G.paused) return;
-    if (n === 'restart') { G.player.respawn(); return; }
+    if (n === 'restart') {
+      if (G.trials.active()) { const st = G.trials.station(); G.player.respawn(st); G.trials.start(st); } else G.player.respawn();
+      return;
+    }
     if (n === 'mute') { toggleMute(); return; }
     G.player.press(n);
   }
   G.onLockChange = (locked) => { lockHint.hidden = locked || G.paused || isTouch(); };
+  // ---------- music ----------
+  const musicBtn = document.getElementById('musicBtn');
+  setMusic(setting('music', 'on') === 'on');
+  function toggleMusic() { setMusic(!musicOn()); setSetting('music', musicOn() ? 'on' : 'off'); musicBtn.setAttribute('aria-pressed', String(musicOn())); musicBtn.textContent = musicOn() ? 'Music: on' : 'Music: off'; }
+  musicBtn.setAttribute('aria-pressed', String(musicOn())); musicBtn.textContent = musicOn() ? 'Music: on' : 'Music: off';
+  musicBtn.addEventListener('click', () => { initAudio(); toggleMusic(); });
+
+  // ---------- photo mode ----------
+  // Freezes time, hides the HUD and frees the camera. Filters are CSS on the canvas (and
+  // baked into the saved PNG); "Watercolor" also pushes the shader's brushwork.
+  const FILTERS = {
+    painted: ['', 1], watercolor: ['saturate(1.12) contrast(0.95) brightness(1.03)', 1.9], ink: ['grayscale(1) contrast(1.4) brightness(1.06)', 1.3],
+    sepia: ['sepia(0.85) contrast(1.05)', 1], vivid: ['saturate(1.5) contrast(1.08)', 1], dusk: ['sepia(0.35) hue-rotate(-25deg) saturate(1.35) brightness(0.9)', 1.1],
+  };
+  const photoBar = document.getElementById('photoBar');
+  let photoFilter = 'painted', wasPaused = false;
+  function applyFilter(name) {
+    photoFilter = name; canvas.style.filter = FILTERS[name][0]; paintUniforms.uPaint.value = FILTERS[name][1];
+    for (const b of photoBar.querySelectorAll('[data-filter]')) b.setAttribute('aria-pressed', String(b.dataset.filter === name));
+  }
+  function setPhoto(on) {
+    if (on === !!G.photo) return;
+    G.photo = on;
+    document.body.classList.toggle('photo', on);
+    photoBar.hidden = !on;
+    if (on) { wasPaused = G.paused; help.hidden = true; G.paused = true; G.camRig.lastManual = performance.now() + 1e9; }
+    else { applyFilter('painted'); G.camRig.zoom = 1; G.camRig.lastManual = performance.now(); setPaused(wasPaused); }
+  }
+  for (const b of photoBar.querySelectorAll('[data-filter]')) b.addEventListener('click', () => applyFilter(b.dataset.filter));
+  document.getElementById('zoomIn').addEventListener('click', () => { G.camRig.zoom = Math.max(0.25, G.camRig.zoom / 1.25); });
+  document.getElementById('zoomOut').addEventListener('click', () => { G.camRig.zoom = Math.min(3, G.camRig.zoom * 1.25); });
+  canvas.addEventListener('wheel', (e) => { if (!G.photo) return; e.preventDefault(); G.camRig.zoom = Math.min(3, Math.max(0.25, G.camRig.zoom * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: false });
+  document.getElementById('photoExit').addEventListener('click', () => setPhoto(false));
+  document.getElementById('photoBtn').addEventListener('click', () => { setPaused(false); setPhoto(true); });
+  document.getElementById('photoSave').addEventListener('click', () => {
+    draw();
+    const out = document.createElement('canvas'); out.width = canvas.width; out.height = canvas.height;
+    const g = out.getContext('2d'); g.filter = FILTERS[photoFilter][0] || 'none'; g.drawImage(canvas, 0, 0);
+    const a = document.createElement('a'); a.href = out.toDataURL('image/png'); a.download = 'hop-lab-photo.png'; a.click();
+  });
+
   const muteBtn = document.getElementById('muteBtn');
   function toggleMute() { setMuted(!isMuted()); muteBtn.setAttribute('aria-pressed', String(isMuted())); muteBtn.classList.toggle('muted', isMuted()); }
   muteBtn.classList.toggle('muted', isMuted()); muteBtn.setAttribute('aria-pressed', String(isMuted()));
@@ -109,10 +183,29 @@ async function start() {
       for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== tab.dataset.tab;
     });
   }
+  // Moons tab: what's been found so far, and a way to start over.
+  const moonList = document.getElementById('moonList');
+  function refreshMoons() {
+    moonList.innerHTML = '';
+    for (const m of G.moons) {
+      const li = document.createElement('li');
+      li.className = m.got ? 'got' : '';
+      li.textContent = (m.got ? '● ' : '○ ') + m.name;
+      moonList.appendChild(li);
+    }
+    document.getElementById('moonTally').textContent = `${G.moonsGot} of ${G.moons.length} moons · ${G.coins} coins`;
+  }
+  document.querySelector('[data-tab="moons"]').addEventListener('click', refreshMoons);
+  document.getElementById('resetBtn').addEventListener('click', () => { if (confirm('Forget all collected moons and coins?')) save.reset(); });
+  for (const b of document.querySelectorAll('[data-gfx]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.gfx === gfx));
+    b.addEventListener('click', () => { if (b.dataset.gfx !== gfx) { setSetting('gfx', b.dataset.gfx); location.reload(); } });
+  }
   const warpList = document.getElementById('warpList');
   for (const s of G.stations) {
     const b = document.createElement('button'); b.className = 'warp'; b.textContent = s.name;
-    b.addEventListener('click', () => { G.player.respawn(s); setPaused(false); });
+    if (s.moon) b.title = 'Time trial: ' + s.moon;
+    b.addEventListener('click', () => { G.player.respawn(s); setPaused(false); G.trials.start(s); });
     warpList.appendChild(b);
   }
   if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
@@ -159,16 +252,26 @@ async function start() {
         for (const c of G.captures) c.update(h, G);
         G.player.step(h);
         G.cap.update(h);
+        G.trials.update(h);
       }
     }
     const rdt = G.paused ? 0 : dt;
     const C = G.char;
+    // The nearest moon, capture, coin or Cappy within a few metres catches the hero's eye.
+    let best = null, bestD = 7;
+    const consider = (p, range, w = 1) => { const d = p.distanceTo(P.pos) / w; if (d < bestD && d < range) { bestD = d; best = p; } };
+    if (G.cap.active) consider(G.cap.pos, 12, 2);
+    for (const m of G.moons) if (!m.got && !m.hidden) consider(m.group.position, 10, 1.6);
+    for (const c of G.captures) if (!c.captured && !c.stacked) consider(c.pos, 6, 1.2);
+    for (const c of G.coinList) if (!c.got) consider(c.pos, 4);
+    P.lookAt = best;
     C.root.position.copy(P.pos);
-    C.root.visible = P.state !== 'capture' && !(P.invuln > 0 && Math.sin(G.time * 40) > 0);
+    C.root.visible = P.state !== 'capture' && P.state !== 'flat' && !(P.invuln > 0 && Math.sin(G.time * 40) > 0);
     C.hat.visible = !G.cap.active && P.state !== 'capture';
     C.animate(P, rdt, G.time, G.camRig.yaw);
     G.cap.render(G.capMesh, rdt, G.time);
     for (const o of G.objects) if (o.render) o.render(rdt, G.time, G);
+    G.trials.render(rdt);
     for (const c of G.captures) c.render(rdt, G.time, G);
 
     dustT -= rdt;
@@ -181,14 +284,20 @@ async function start() {
     G.fx.update(rdt);
 
     const gb = groundBelow(G.world, P.pos.x, P.pos.y + 0.05, P.pos.z, 0);
-    blob.visible = !!gb && P.state !== 'pipe' && P.state !== 'capture';
+    blob.visible = !!gb && P.state !== 'pipe' && P.state !== 'capture' && P.state !== 'flat';
     if (gb) { const k = Math.max(0.3, 1 - (P.pos.y - gb.y) * 0.07); blob.position.set(P.pos.x, gb.y + 0.03, P.pos.z); blob.scale.setScalar(k); }
 
+    paintUniforms.uTime.value = G.time; paintUniforms.uPlayer.value.copy(P.pos);
+    const camPos = G.camRig.cam.position;
+    document.body.classList.toggle('underwater', !!G.world.waterAt(camPos.x, camPos.y, camPos.z));
     G.camRig.update(dt, now);
     const t = G.camRig.target;
     sun.position.set(Math.round(t.x) + 20, t.y + 36, Math.round(t.z) + 12); sun.target.position.set(Math.round(t.x), t.y, Math.round(t.z));
     rim.position.set(t.x - 18, t.y + 14, t.z - 22); rim.target.position.copy(t);
     G.hud.prompt(G.paused ? '' : prompt());
+    updateMusic(G, dt);
+    // Falling off the sky island puts you back on it rather than dropping you into the room.
+    if (!G.paused && P.pos.z < -100 && P.pos.y < 28) G.player.respawn(G.spawnFlag && G.spawnFlag.island ? G.spawn : G.islandStart);
     draw();
   }
   G.camRig.snap(SPAWN.facing + PI);

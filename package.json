@@ -1,18 +1,20 @@
 {
   "name": "smohtml",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Super Mario Odyssey-style movement prototype and dev room in three.js",
   "license": "MIT",
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=iife --target=es2020 --minify --sourcemap --outfile=game.js --loader:.glb=binary && node tools/build-single.mjs",
     "watch": "esbuild src/main.js --bundle --format=iife --target=es2020 --sourcemap --outfile=game.js --loader:.glb=binary --watch",
-    "single": "node tools/build-single.mjs"
+    "single": "node tools/build-single.mjs",
+    "models": "blender --background --factory-startup --python tools/blender/build_models.py && gltf-transform meshopt assets/models.glb assets/models.glb"
   },
   "dependencies": {
     "three": "0.170.0"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "esbuild": "0.24.0"
   }
 }

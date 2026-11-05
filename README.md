@@ -1,6 +1,6 @@
 # SMOHtml — Hop Lab
 
-A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 15 stations on paved pads among grass, trees and stone walls. Each station shows off one move, object or capture, and each one hides a Power Moon.
+A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 19 stations on paved pads among grass, trees and stone walls, plus a short course on a sky island. Each station shows off one move, object or capture, and each one hides a Power Moon.
 
 **Play it in your browser:** https://devvmonks-glitch.github.io/SMOHtml/
 
@@ -24,8 +24,18 @@ A browser prototype of Super Mario Odyssey–style 3D platforming, built with [t
 | Goomba tower | Capture a Goomba, stack the others, and reach Goombette. Towers stay stacked when you let go |
 | Spark pylon | Capture it to zip along the wire to a far tower |
 | Roll ramp | Roll down a slope to build speed |
+| Swimming pool | Swim at the surface, dive and stroke down to a moon on the bottom |
+| Chain Chomp | Capture it, pull back against its chain, and launch it to smash a boulder |
+| 8-bit wall | Walk into the pipe at its foot to become pixel art and run a 2D course along the wall |
+| Sky island | A plaza pipe leads to a floating course that uses everything, with a Grand Moon at the top |
 
 Checkpoint flags are scattered around: touch one (or hit it with your cap) and **R** respawns you there. The menu's **Warp** tab jumps straight to any station.
+
+**Time trials:** warping to a station starts a timer that stops when you grab its moon (a collected moon comes back see-through for the trial). Your best time and route are saved, and next time a ghost of that run races you. **R** restarts the trial.
+
+**Saved progress:** moons, coins and best times are kept in your browser. The menu's **Moons** tab lists what you've found and can reset it.
+
+**Photo mode:** press **P** to freeze time, orbit and zoom the camera, try filters (painted, watercolor, ink, sepia, vivid, dusk) and save a picture.
 
 ## Moves
 
@@ -44,7 +54,8 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 | Spin jump | Spin the stick (or press Q), then Jump. A higher jump with a slow, spinning fall |
 | Twirl | Spin the stick (or press Q) in the air. You spin and float down slowly, once per jump |
 | Spin throw | Spin the stick (or press Q), then press Cap. Cappy circles around you, grabbing coins and captures |
-| Capture | Hit a frog, Goomba or spark pylon with your cap. Crouch to let go |
+| Capture | Hit a frog, Goomba, spark pylon or Chain Chomp with your cap. Crouch to let go |
+| Swim | Jump into water. At the surface, Jump to climb out and Crouch to dive; underwater, Jump to stroke and hold Crouch to sink |
 
 ## Controls
 
@@ -58,7 +69,8 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 | Spin | Q, or roll through WASD | Spin the stick, or click a stick | Spin the stick |
 | Restart at checkpoint | R | Select | — |
 | Menu | H or Esc | Start | **?** |
-| Mute | M | — | Speaker button |
+| Mute / music | M / N | — | Speaker button / menu |
+| Photo mode | P | — | Menu |
 
 ## How it feels the way it does
 
@@ -66,7 +78,9 @@ Checkpoint flags are scattered around: touch one (or hit it with your cap) and *
 - Collision handles boxes, cylinders and ramps. Small ledges are stepped onto, you stick to slopes and stairs when walking down, and moving or spinning platforms carry you.
 - The character is a jointed rig, posed procedurally. Every move has its own pose, the joints blend between poses, and landings and jumps get springy squash and stretch.
 - The camera holds its height through jumps instead of bobbing, swings behind you as you run, and pulls in when a wall gets in the way.
-- All sound effects are synthesised with Web Audio, so there are no audio files.
+- All sound effects and the music are synthesised with Web Audio, so there are no audio files. The soundtrack has four layers: the arpeggio and drums swell as you speed up, captures shift its mood, and it ducks for moon fanfares.
+- Grass, flowers and trees sway in the wind, grass tufts bend away as you walk through them, and running leaves footprints.
+- The hero glances at nearby coins, moons and creatures, Cappy looks back at you while hovering, and Goombas look up when you jump over them.
 - The painted look is done in the material shaders (`src/paint.js`): light falls off in soft bands that wobble along brush strokes, shadows lean cool lilac and highlights warm, pigment varies across surfaces, and edges darken softly. The sky, world textures and paper grain are painted on canvases at startup, so there are no image files either.
 
 ## Playing locally
@@ -93,6 +107,8 @@ npm run watch   # rebuild game.js on every change
 npm run build   # minified game.js plus the single-file hop-lab.html
 ```
 
+Graphics: the menu's Controls tab switches between High and Low (no shadows, fewer grass tufts, 1x resolution). Touch devices start on Low.
+
 
 Add `?debug` to the URL to expose the game state as `window.HL` in the console.
 
@@ -101,7 +117,7 @@ Add `?debug` to the URL to expose the game state as `window.HL` in the console.
 The character, Cappy, Goombas, the frog, Power Moons and coins are modeled in Blender by a script, so they can be rebuilt or tweaked:
 
 ```bash
-blender --background --factory-startup --python tools/blender/build_models.py
+npm run models   # Blender (must be on your PATH), then meshopt compression
 npm run build
 ```
 
@@ -127,7 +143,11 @@ src/input.js      keyboard, mouse, gamepad and touch
 src/audio.js      synthesised sound effects
 src/fx.js         particles and shockwave rings
 src/paint.js      painterly shading, painted sky and paper grain
-src/decor.js      trees, bushes, flowers, rocks, lamps, fences and hills
+src/decor.js      trees, bushes, flowers, rocks, lamps, fences, hills, grass tufts and footprints
+src/flat.js       the 8-bit wall section
+src/trial.js      time trials and ghost replays
+src/music.js      the synthesised soundtrack
+src/save.js       saved progress and settings
 src/hud.js        on-screen counters, toasts and banners
 src/models.js     loads the Blender models and swaps them into the rig
 assets/models.glb exported models

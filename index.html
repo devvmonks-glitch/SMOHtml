@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=0.4.0">
+<link rel="stylesheet" href="style.css?v=0.5.0">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -27,11 +27,27 @@
   </div>
 </div>
 <div id="timer" hidden></div>
+<div id="runTimer" hidden></div>
 <div id="toast" aria-live="polite"></div>
 <div id="banner" hidden><div class="banner-kicker">You got a Moon!</div><div class="banner-name" id="bannerName"></div></div>
 <div id="prompt" hidden></div>
 <div id="lockHint" hidden>Click to steer the camera with your mouse</div>
 <div id="loading">Loading…</div>
+<div id="photoBar" hidden>
+  <div class="filters">
+    <button data-filter="painted" aria-pressed="true">Painted</button>
+    <button data-filter="watercolor">Watercolor</button>
+    <button data-filter="ink">Ink</button>
+    <button data-filter="sepia">Sepia</button>
+    <button data-filter="vivid">Vivid</button>
+    <button data-filter="dusk">Dusk</button>
+  </div>
+  <div class="photo-actions">
+    <button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">&minus;</button>
+    <button id="photoSave" class="primary">Save picture</button><button id="photoExit">Done</button>
+  </div>
+  <p class="photo-hint">Drag or move the mouse to turn · scroll or +/&minus; to zoom · P to leave</p>
+</div>
 
 <div class="touch-ui" id="stickZone"></div>
 <div id="stick"><div id="knob"></div></div>
@@ -51,6 +67,7 @@
       <button role="tab" data-tab="things" aria-selected="false">Objects</button>
       <button role="tab" data-tab="controls" aria-selected="false">Controls</button>
       <button role="tab" data-tab="warp" aria-selected="false">Warp</button>
+      <button role="tab" data-tab="moons" aria-selected="false">Moons</button>
     </div>
     <section data-panel="moves">
       <dl class="moves">
@@ -81,6 +98,12 @@
         <dt>P switch</dt><dd>Step on it for a short-lived staircase</dd>
         <dt>Pipes</dt><dd>Stand on one and Crouch, or ground pound onto it, to warp</dd>
         <dt>Checkpoints</dt><dd>Touch a flag to respawn there with R</dd>
+        <dt>Chain Chomp</dt><dd>Capture it, pull away from its stake to wind up, then let go to launch and smash boulders</dd>
+        <dt>Pool</dt><dd>Jump in to swim. Crouch to dive, Jump to stroke underwater, Jump at the surface to climb out</dd>
+        <dt>8-bit wall</dt><dd>Walk into the green pipe at its foot to become pixel art and run along the wall</dd>
+        <dt>Sky island</dt><dd>Take the plaza pipe up to a real course in the sky, with a Grand Moon at the top</dd>
+        <dt>Time trials</dt><dd>Warp to a station from the menu to race its moon. Beat your best and your ghost races you next time. R restarts</dd>
+        <dt>Photo mode</dt><dd>Press P to freeze time, orbit, zoom, try filters and save a picture</dd>
       </dl>
     </section>
     <section data-panel="controls" hidden>
@@ -95,14 +118,22 @@
           <tr><td>Spin</td><td>Q or roll through WASD</td><td>Spin the stick, or click a stick</td></tr>
           <tr><td>Restart</td><td>R</td><td>Select</td></tr>
           <tr><td>Menu</td><td>H or Esc</td><td>Start</td></tr>
-          <tr><td>Mute</td><td>M</td><td></td></tr>
+          <tr><td>Mute / music</td><td>M / N</td><td></td></tr>
+          <tr><td>Photo mode</td><td>P</td><td></td></tr>
         </tbody>
       </table>
       <p class="keys">On touch screens, drag on the left to move and on the right to turn the camera.</p>
+      <div class="gfx"><span>Graphics</span><button data-gfx="high">High</button><button data-gfx="low">Low</button></div>
     </section>
     <section data-panel="warp" hidden>
       <div class="warps" id="warpList"></div>
     </section>
+    <section data-panel="moons" hidden>
+      <p class="tally" id="moonTally"></p>
+      <ul class="moonlist" id="moonList"></ul>
+      <p class="keys">Progress is saved in this browser. <button class="linkish" id="resetBtn">Reset progress</button></p>
+    </section>
+    <div class="menu-row"><button id="photoBtn" class="ghostbtn">Photo mode (P)</button><button id="musicBtn" class="ghostbtn" aria-pressed="true">Music: on</button></div>
     <button id="play">Play</button>
   </div>
 </div>
@@ -127,6 +158,6 @@
   }, 12000);
 })();
 </script>
-<script src="game.js?v=0.4.0"></script>
+<script src="game.js?v=0.5.0"></script>
 </body>
 </html>

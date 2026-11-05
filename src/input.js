@@ -15,6 +15,8 @@ export function createInput(G, canvas, onPress) {
   const fire = n => { initAudio(); onPress(n); };
 
   addEventListener('keydown', e => {
+    if (e.code === 'KeyP' && !e.repeat) { fire('photo'); return; }
+    if (G.photo && (e.code === 'Escape' || e.code === 'KeyH')) { if (!e.repeat) fire('photo'); return; }
     if (e.code === 'KeyH' || e.code === 'Slash' || (e.code === 'Escape' && !st.locked)) { if (!e.repeat) fire('menu'); return; }
     if (G.paused) return;
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -26,6 +28,7 @@ export function createInput(G, canvas, onPress) {
     if (e.code === 'KeyQ') fire('spin');
     if (e.code === 'KeyR') fire('restart');
     if (e.code === 'KeyM') fire('mute');
+    if (e.code === 'KeyN') fire('music');
   });
   addEventListener('keyup', e => {
     keys.delete(e.code);

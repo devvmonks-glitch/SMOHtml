@@ -292,6 +292,11 @@ export class Goomba extends Capturable {
     this.group.position.set(base.x + this.sway.x * n * n * 0.5, base.y + 0.9 * n, base.z + this.sway.y * n * n * 0.5);
     this.group.rotation.y = yaw;
     this.body.scale.set(1 + this.sq * 0.4, 1 - this.sq, 1 + this.sq * 0.4);
+    // Tip back to watch a player jumping overhead.
+    const above = !cap && Math.hypot(P.pos.x - base.x, P.pos.z - base.z) < 3 && P.pos.y > base.y + this.H + 0.3;
+    this.lookUp = (this.lookUp || 0) + ((above ? -0.45 : 0) - (this.lookUp || 0)) * damp(8, dt);
+    this.body.rotation.x = this.lookUp;
+    if (above) this.group.rotation.y += angDiff(Math.atan2(P.pos.x - base.x, P.pos.z - base.z), this.group.rotation.y) * damp(6, dt);
     this.walkAnim(this.walk, hs);
   }
   walkAnim(w, hs) {
@@ -375,6 +380,121 @@ export class Pylon extends Capturable {
   render(dt, time, G) {
     this.orbMat.emissiveIntensity = 1 + Math.sin(time * 8) * 0.3;
     if (this.captured) { this.ball.position.copy(G.P.pos); this.ball.scale.setScalar(0.9 + Math.sin(time * 40) * 0.15); }
+  }
+}
+
+// ---------- chain chomp ----------
+// Tethered to a stake. Free, it hops about and lunges at you. Captured, pull away from
+// the stake to stretch the chain and wind up, then let go of the stick to launch it
+// back past the stake, smashing anything breakable in its way.
+export class ChainChomp extends Capturable {
+  constructor(G, x, z, tether = 5.5) {
+    super(G, x + 2, 0, z, 'Captured: Chain Chomp');
+    this.R = 0.85; this.H = 1.7; this.stake = new THREE.Vector3(x, 0, z); this.L = tether;
+    this.mode = 'idle'; this.timer = 1; this.charge = 0; this.launchDir = new THREE.Vector3(); this.cd = 0;
+    const black = std(0x1d1d2a, { roughness: 0.25, metalness: 0.35 }), white = std(0xffffff, { roughness: 0.2 }), red = std(0x8e1f2e, { roughness: 0.6 });
+    this.body = new THREE.Group(); this.body.position.y = 0.85; this.group.add(this.body);
+    part(new THREE.SphereGeometry(0.85, 32, 22), black, this.body);
+    for (const s of [-1, 1]) eye(this.body, s * 0.32, 0.28, 0.68, 0.2, 0.6);
+    this.mouth = new THREE.Group(); this.mouth.position.set(0, -0.18, 0.62); this.body.add(this.mouth);
+    part(new THREE.SphereGeometry(0.42, 20, 12, 0, TAU, 0, PI / 2), red, this.mouth).rotation.x = PI / 2 + 0.2;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 6 - 0.5) * 2.4;
+      part(new THREE.ConeGeometry(0.06, 0.15, 6), white, this.mouth, Math.sin(a) * 0.36, 0.12, Math.cos(a) * 0.12).rotation.x = PI;
+    }
+    this.addHat(1.65, 0.65);
+    // Stake and chain links.
+    const wood = std(0x7a5232, { roughness: 0.9 }), metal = std(0x5d6170, { metalness: 0.7, roughness: 0.35 });
+    const post = part(new THREE.CylinderGeometry(0.28, 0.34, 1.1, 14), wood, G.scene); post.position.set(x, 0.55, z);
+    this.stakeSolid = G.world.cyl(x, z, 0.32, 0, 1.1, { noLedge: true, noWall: true });
+    this.links = Array.from({ length: 9 }, (_, i) => { const m = part(new THREE.TorusGeometry(0.16, 0.05, 6, 12), metal, G.scene); m.rotation.y = i % 2 ? 0 : PI / 2; return m; });
+    this.facing = 0;
+  }
+  clampToTether(p, extra = 0) {
+    const dx = p.x - this.stake.x, dz = p.z - this.stake.z, d = Math.hypot(dx, dz), L = this.L + extra;
+    if (d > L) { p.x = this.stake.x + dx / d * L; p.z = this.stake.z + dz / d * L; return true; }
+    return false;
+  }
+  update(h, G) {
+    if (this.captured) return;
+    this.stun -= h; this.cd -= h; this.timer -= h;
+    const P = G.P, toP = new THREE.Vector3(P.pos.x - this.pos.x, 0, P.pos.z - this.pos.z), dP = toP.length();
+    if (this.mode === 'lunge') {
+      this.vel.x = this.launchDir.x * 13; this.vel.z = this.launchDir.z * 13;
+      if (this.timer <= 0) { this.mode = 'idle'; this.timer = 1; }
+    } else {
+      this.vel.x *= Math.exp(-5 * h); this.vel.z *= Math.exp(-5 * h);
+      if (this.onGround && this.timer <= 0) {
+        this.timer = 0.6 + Math.random() * 0.8;
+        const a = Math.random() * TAU; this.vel.x += Math.cos(a) * 2.5; this.vel.z += Math.sin(a) * 2.5; this.vel.y = 4;
+      }
+      if (P.state !== 'capture' && this.stun <= 0 && this.cd <= 0 && dP < this.L + 3 && dP > 0.1) {
+        this.mode = 'lunge'; this.timer = 0.45; this.cd = 2.5; this.launchDir.copy(toP).normalize(); this.vel.y = 3;
+        this.facing = Math.atan2(toP.x, toP.z); G.sfx.chomp();
+      }
+    }
+    if (this.mode !== 'lunge' && dP > 0.1) this.facing += angDiff(Math.atan2(toP.x, toP.z), this.facing) * damp(4, h);
+    this.freeFall(h, G);
+    this.clampToTether(this.pos, 1);
+    if (P.state !== 'capture' && this.stun <= 0 && dP < this.R + P.R + 0.1 && P.pos.y < this.pos.y + this.H) G.player.hurt(this.pos.x, this.pos.z);
+  }
+  onCapture(G) { super.onCapture(); this.mode = 'held'; this.charge = 0; }
+  release(G) { const lift = super.release(G); this.mode = 'idle'; this.timer = 1; this.cd = 2; return lift; }
+  control(G, h) {
+    const P = G.P, W = G.W;
+    const out = new THREE.Vector3(P.pos.x - this.stake.x, 0, P.pos.z - this.stake.z), dist = out.length();
+    if (dist > 1e-3) out.divideScalar(dist);
+    if (this.mode === 'launch') {
+      this.timer -= h;
+      this.stakeSolid.on = false; // the launch flies straight past its own stake
+      P.vel.x = this.launchDir.x * 30; P.vel.z = this.launchDir.z * 30; P.vel.y -= 20 * h;
+      const res = moveBody(P, G.world, h, P.onGround);
+      // Smash breakables we fly into.
+      for (const s of G.world.solids) {
+        if (s.breakable && s.on && P.pos.x + 1.1 > s.min.x && P.pos.x - 1.1 < s.max.x && P.pos.z + 1.1 > s.min.z && P.pos.z - 1.1 < s.max.z && P.pos.y < s.max.y) s.smash(G);
+      }
+      if (this.timer <= 0 || (res.wall && !res.wall.s.breakable)) { this.mode = 'return'; this.stakeSolid.on = true; G.camRig.addShake(0.3); }
+      G.fx.dust(P.pos.x, P.pos.y, P.pos.z, 1, 1, 0.25);
+    } else {
+      // Walk within the tether; at its end, pulling outward winds up the launch.
+      const pulling = W && dist > this.L - 0.35 && (W.x * out.x + W.z * out.z) > 0.55;
+      if (this.mode === 'return') {
+        P.vel.x = -out.x * 9; P.vel.z = -out.z * 9;
+        if (dist < this.L) this.mode = 'held';
+      } else {
+        const tx = W ? W.x * 3.2 * W.mag : 0, tz = W ? W.z * 3.2 * W.mag : 0, k = damp(8, h);
+        P.vel.x += (tx - P.vel.x) * k; P.vel.z += (tz - P.vel.z) * k;
+        if (pulling) { this.charge = Math.min(1, this.charge + h / 0.7); if (Math.random() < h * 20) G.fx.dust(P.pos.x, P.pos.y, P.pos.z, 1, 1.5, 0.2); }
+        else if (this.charge > 0.35) {
+          this.mode = 'launch'; this.timer = 0.55; this.launchDir.set(-out.x, 0, -out.z);
+          P.facing = Math.atan2(-out.x, -out.z); P.vel.y = 4; this.charge = 0; G.sfx.chomp(); G.hud.toast('Chomp!');
+        } else this.charge = Math.max(0, this.charge - h * 2);
+      }
+      if (W && this.mode === 'held') P.facing += angDiff(pulling ? Math.atan2(-out.x, -out.z) : Math.atan2(W.x, W.z), P.facing) * damp(8, h);
+      P.vel.y -= 32 * h;
+      moveBody(P, G.world, h, P.onGround);
+      if (this.mode === 'held') this.clampToTether(P.pos);
+    }
+    P.hs = Math.hypot(P.vel.x, P.vel.z);
+    this.pos.copy(P.pos); this.facing = P.facing;
+  }
+  render(dt, time, G) {
+    const P = G.P, pos = this.captured ? P.pos : this.pos;
+    this.group.position.copy(pos); this.group.rotation.y = this.captured ? G.char.yaw : this.facing;
+    this.spring(dt);
+    const strain = this.captured ? this.charge : 0;
+    this.body.scale.set(1 + this.sq * 0.3 + strain * 0.12, 1 - this.sq - strain * 0.1, 1 - strain * 0.18);
+    const bite = this.mode === 'lunge' || this.mode === 'launch' ? Math.abs(Math.sin(time * 18)) : 0.15 + Math.sin(time * 3) * 0.05;
+    this.mouth.rotation.x = bite * 0.5;
+    // Chain: sags between the stake top and the back of the Chomp, pulled straight when taut.
+    const a = new THREE.Vector3(this.stake.x, 1.0, this.stake.z), b = new THREE.Vector3(pos.x, pos.y + 0.6, pos.z);
+    const taut = Math.min(1, a.distanceTo(b) / (this.L + 0.5));
+    this.links.forEach((l, i) => {
+      const t = (i + 1) / (this.links.length + 1);
+      l.position.lerpVectors(a, b, t); l.position.y -= Math.sin(t * PI) * (1 - taut) * 0.9;
+      if (l.position.y < 0.1) l.position.y = 0.1;
+      l.lookAt(b);
+    });
   }
 }
 

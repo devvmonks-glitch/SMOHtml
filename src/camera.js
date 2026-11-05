@@ -13,7 +13,7 @@ export class CameraRig {
     this.cam = camera; this.G = G;
     this.yaw = 0; this.pitch = 0.3; this.cur = 10; this.lastManual = -1e9;
     this.target = new THREE.Vector3(); this.look = new THREE.Vector3(); this.groundY = 0;
-    this.shakeAmt = 0; this.fovK = 0; this.snapNext = true; this._d = new THREE.Vector3();
+    this.shakeAmt = 0; this.fovK = 0; this.snapNext = true; this._d = new THREE.Vector3(); this.zoom = 1;
   }
   snap(yaw) { this.snapNext = true; if (yaw !== undefined) this.yaw = yaw; }
   addShake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
@@ -32,6 +32,15 @@ export class CameraRig {
 
   update(dt, now) {
     const P = this.G.P, hs = P.hs;
+    if (P.state === 'flat') {
+      const c = this.cam, k = damp(5, dt);
+      const want = this._d.set(P.pos.x + 9, Math.max(3.2, P.pos.y + 1.6), P.pos.z);
+      if (this.snapNext) c.position.copy(want); else c.position.lerp(want, k);
+      this.target.set(P.pos.x - 0.6, Math.max(2.4, P.pos.y + 1.0), P.pos.z);
+      c.lookAt(this.target); this.snapNext = false; this.flatWas = true;
+      return;
+    }
+    if (this.flatWas) { this.flatWas = false; this.snapNext = true; }
     if (now - this.lastManual > 1400 && hs > 3 && !NO_AUTO.has(P.state))
       this.yaw += angDiff(P.facing + PI, this.yaw) * damp(0.9 * clamp(hs / 9, 0, 1.4), dt);
 
@@ -52,7 +61,7 @@ export class CameraRig {
       this.target.y += (ty - this.target.y) * damp(P.vel.y < -14 ? 9 : 4.5, dt);
     }
 
-    const base = (this.cam.aspect < 1 ? 12.5 : 10.5) + clamp(hs - 10, 0, 12) * 0.15;
+    const base = ((this.cam.aspect < 1 ? 12.5 : 10.5) + clamp(hs - 10, 0, 12) * 0.15) * this.zoom;
     const d = this._d.set(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
     const hit = rayCast(this.G.world, this.target, d, base + 0.5);
     const want = Math.max(1.6, Math.min(base, hit - 0.45));

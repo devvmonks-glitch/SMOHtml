@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 // Built by tools/blender/build_models.py and embedded into game.js by esbuild,
 // so the game still works offline and from file://.
 import glb from '../assets/models.glb';
@@ -10,7 +12,8 @@ export const loadedParts = parts; // for ?debug
 export async function loadModels() {
   try {
     const buf = glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength);
-    const gltf = await new GLTFLoader().parseAsync(buf, '');
+    // The GLB is meshopt-compressed (npm run models), about a quarter of its raw size.
+    const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buf, '');
     gltf.scene.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = true;
@@ -21,6 +24,8 @@ export async function loadModels() {
       }
     });
     for (const c of gltf.scene.children) parts[c.name] = c;
+    // Remember the bind pose so copies of the rig can start from it, not from a live pose.
+    if (parts.heroRig) parts.heroRig.traverse((o) => { if (o.isBone) o.userData.rest = o.quaternion.toArray(); });
   } catch (e) {
     console.warn('Models failed to load; using simple shapes instead.', e);
   }
@@ -28,6 +33,14 @@ export async function loadModels() {
 
 // The hero's skinned body and skeleton (there is only one, so it isn't cloned).
 export const heroRig = () => parts.heroRig || null;
+// An independent copy of the rig (bones and all), e.g. for the time-trial ghost.
+export function cloneHeroRig() {
+  if (!parts.heroRig) return null;
+  const c = cloneSkinned(parts.heroRig);
+  c.traverse((o) => { if (o.isBone && o.userData.rest) o.quaternion.fromArray(o.userData.rest); });
+  c.position.set(0, 0, 0);
+  return c;
+}
 
 // A fresh instance of a named model (geometry and materials are shared), or null.
 export function model(name) {

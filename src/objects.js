@@ -24,6 +24,7 @@ export class Coin {
   constructor(G, x, y, z) {
     this.mesh = coinMesh(); this.mesh.position.set(x, y, z); G.scene.add(this.mesh);
     this.pos = this.mesh.position; this.got = false; this.phase = Math.random() * TAU;
+    this.id = G.coinList.length; G.coinList.push(this);
     G.objects.push(this);
   }
   update(h, G) {
@@ -34,7 +35,7 @@ export class Coin {
   capHit(G, p) { if (!this.got && p.distanceToSquared(this.pos) < 0.85) this.collect(G); }
   collect(G) {
     this.got = true; this.mesh.visible = false;
-    G.addCoins(1); G.sfx.coin(); G.fx.sparkle(this.pos.x, this.pos.y, this.pos.z, 10);
+    G.addCoins(1, this); G.sfx.coin(); G.fx.sparkle(this.pos.x, this.pos.y, this.pos.z, 10);
   }
   render(dt, time) { if (!this.got) this.mesh.rotation.y = time * 3.2 + this.phase; }
 }
@@ -83,30 +84,42 @@ export class Moon {
     const color = opts.color || 0xffd23f;
     this.group = new THREE.Group(); this.group.position.set(x, y, z);
     const moonMat = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.25, emissive: color, emissiveIntensity: 0.28 });
+    this.mat = moonMat;
     let m = model('moon');
     if (m) m.traverse((o) => { if (o.isMesh) o.material = moonMat; });
     else { moonGeo = moonGeo || makeMoonGeo(); m = new THREE.Mesh(moonGeo, moonMat); m.castShadow = true; }
     m.scale.setScalar(1.5); m.rotation.z = -0.35;
     this.spinner = new THREE.Group(); this.spinner.add(m); this.group.add(this.spinner);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.75 }));
-    glow.scale.setScalar(2.6); this.group.add(glow);
+    glow.scale.setScalar(2.6); this.group.add(glow); this.glow = glow;
     G.scene.add(this.group);
     this.base = new THREE.Vector3(x, y, z); this.name = name; this.got = false;
     this.hidden = !!opts.hidden; this.group.visible = !this.hidden;
     this.appear = 0; this.from = null; this.flyT = 0;
     G.moons.push(this); G.objects.push(this);
   }
+  // A collected moon shown again for a time trial: see-through, like SMO's moon outlines.
+  setGhostly(on) {
+    this.mat.transparent = on; this.mat.opacity = on ? 0.4 : 1; this.mat.depthWrite = !on; this.mat.needsUpdate = true;
+    this.glow.material.opacity = on ? 0.3 : 0.75;
+  }
   reveal(G, from) {
     if (!this.hidden) return;
+    if (this.got) { this.hidden = false; return; } // already collected on an earlier visit
     this.hidden = false; this.group.visible = true; this.appear = 1e-4;
     this.from = (from || this.base).clone();
     G.sfx.moonAppear(); G.hud.toast('A Power Moon appeared!');
     G.fx.sparkle(this.from.x, this.from.y, this.from.z, 20, 0xfff3a0);
   }
   update(h, G) {
-    if (this.got || this.hidden || (this.appear > 0 && this.appear < 1)) return;
+    if ((this.got && !this.trial) || this.hidden || (this.appear > 0 && this.appear < 1)) return;
     const P = G.P, p = this.group.position;
     if (Math.hypot(P.pos.x - p.x, P.pos.y + P.H * 0.5 - p.y, P.pos.z - p.z) < 1.3 && P.state !== 'pipe') {
+      if (this.trial) {
+        this.group.visible = false; G.fx.sparkle(p.x, p.y, p.z, 24, 0xfff3a0); G.sfx.moonAppear();
+        G.trials.finish(this);
+        return;
+      }
       this.got = true; this.flyT = 0;
       G.onMoon(this);
     }
@@ -114,7 +127,7 @@ export class Moon {
   render(dt, time, G) {
     if (this.hidden || !this.group.visible) return;
     const p = this.group.position;
-    if (this.got) {
+    if (this.got && !this.trial) {
       this.flyT += dt;
       const P = G.P, k = damp(10, dt);
       p.x += (P.pos.x - p.x) * k; p.y += (P.pos.y + 2.5 + Math.sin(this.flyT * 6) * 0.08 - p.y) * k; p.z += (P.pos.z - p.z) * k;
@@ -264,6 +277,28 @@ export class Brick {
     G.fx.debris(p.x, p.y, p.z, 14, 0xc4622d); G.sfx.brick(); G.camRig.addShake(0.12);
     if (this.moon) this.moon.reveal(G, p);
     return 'break';
+  }
+}
+
+// A cracked boulder only a launched Chain Chomp can break.
+export class Boulder {
+  constructor(G, x, z, size, moon = null) {
+    this.solid = G.world.box(x, size / 2, z, size, size, size, { noLedge: true, breakable: true, smash: (G2) => this.smash(G2) });
+    this.mesh = shadowed(new THREE.Mesh(new THREE.DodecahedronGeometry(size * 0.72, 1), std(0x9c9284, { roughness: 0.95, flatShading: true })));
+    this.mesh.position.set(x, size / 2, z); this.mesh.scale.set(1, 0.9, 1); G.scene.add(this.mesh);
+    const crack = new THREE.MeshBasicMaterial({ color: 0x4a4035 });
+    for (let i = 0; i < 4; i++) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.06, size * 0.5, 0.06), crack);
+      c.position.set((i - 1.5) * size * 0.18, size * 0.05, size * 0.62); c.rotation.z = (i % 2 ? 0.5 : -0.4); this.mesh.add(c);
+    }
+    this.moon = moon;
+  }
+  smash(G) {
+    if (!this.solid.on) return;
+    this.solid.on = false; this.mesh.visible = false;
+    const p = this.mesh.position;
+    G.fx.debris(p.x, p.y, p.z, 26, 0x9c9284); G.sfx.brick(); G.camRig.addShake(0.5);
+    if (this.moon) this.moon.reveal(G, p);
   }
 }
 

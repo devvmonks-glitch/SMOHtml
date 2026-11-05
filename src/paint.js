@@ -8,6 +8,9 @@ import * as THREE from 'three';
 
 let brushTex = null;
 
+// Shared by every painted material: time drives the wind, the player position bends grass.
+export const paintUniforms = { uTime: { value: 0 }, uPlayer: { value: new THREE.Vector3(0, -100, 0) }, uPaint: { value: 1 } };
+
 // A tileable greyscale texture of overlapping brush strokes (mean value ~0.5).
 export function brushTexture() {
   if (brushTex) return brushTex;
@@ -36,7 +39,29 @@ export function brushTexture() {
   return brushTex;
 }
 
-const VERT_DECL = 'varying vec3 vPaintPos;\nvarying vec3 vPaintN;\n';
+const VERT_DECL = 'varying vec3 vPaintPos;\nvarying vec3 vPaintN;\nuniform float uTime;\nuniform vec3 uPlayer;\nuniform float uWind;\n';
+// Wind: sway grows with height above the object's base. Grass also bends away from the player.
+const WIND_BODY = `
+  {
+    vec4 wbase = vec4(0.0, 0.0, 0.0, 1.0);
+    #ifdef USE_INSTANCING
+      wbase = instanceMatrix * wbase;
+    #endif
+    vec3 wroot = (modelMatrix * wbase).xyz;
+    float hgt = max(position.y, 0.0);
+    float sway = sin(uTime * 1.6 + wroot.x * 0.35 + wroot.z * 0.27) + 0.5 * sin(uTime * 2.9 + wroot.z * 0.6);
+    transformed.x += sway * uWind * hgt;
+    transformed.z += cos(uTime * 1.3 + wroot.x * 0.21) * 0.6 * uWind * hgt;
+    #ifdef PAINT_GRASS
+      vec2 away = wroot.xz - uPlayer.xz;
+      float d = length(away);
+      float push = (1.0 - smoothstep(0.3, 1.1, d)) * step(abs(wroot.y - uPlayer.y), 1.0);
+      vec2 dir = d > 1e-3 ? away / d : vec2(0.0);
+      transformed.xz += dir * push * hgt * 1.6;
+      transformed.y -= push * hgt * 0.55;
+    #endif
+  }
+`;
 const VERT_BODY = `
   vec4 paintWP = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
@@ -87,20 +112,25 @@ const FRAG_BODY = `
 export function paintify(mat, strength = 1) {
   if (!mat || mat.userData.painted || !(mat.isMeshStandardMaterial || mat.isMeshLambertMaterial)) return;
   mat.userData.painted = true;
+  const wind = mat.userData.wind || 0, grass = !!mat.userData.grass;
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, r) => {
     if (prev) prev(shader, r);
     shader.uniforms.uBrush = { value: brushTexture() };
-    shader.uniforms.uPaint = { value: strength };
-    shader.vertexShader = shader.vertexShader
+    shader.uniforms.uPaint = paintUniforms.uPaint;
+    shader.uniforms.uWind = { value: wind };
+    shader.uniforms.uTime = paintUniforms.uTime;
+    shader.uniforms.uPlayer = paintUniforms.uPlayer;
+    shader.vertexShader = (grass ? '#define PAINT_GRASS\n' : '') + shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + VERT_DECL)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + (wind ? WIND_BODY : ''))
       .replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT_BODY);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + FRAG_DECL)
       .replace('#include <opaque_fragment>', FRAG_BODY);
   };
   const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
-  mat.customProgramCacheKey = () => key() + '|paint' + strength;
+  mat.customProgramCacheKey = () => key() + '|paint' + strength + '|' + wind + (grass ? 'g' : '');
   mat.needsUpdate = true;
 }
 

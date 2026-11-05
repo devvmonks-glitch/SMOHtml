@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dirOf, damp, clamp } from './util.js';
+import { dirOf, damp, clamp, angDiff } from './util.js';
 import { overlaps } from './world.js';
 import { BOUNCE } from './player.js';
 
@@ -92,8 +92,11 @@ export function createCap(G) {
     render(mesh, dt, time) {
       mesh.visible = this.active;
       if (!this.active) return;
-      const rate = this.phase === 'hover' ? 16 : this.phase === 'orbit' ? 34 : 30;
-      this.spin += rate * dt;
+      if (this.phase === 'hover' && this.t > 0.12) {
+        // Settle and glance back at the player, with a little curious wobble.
+        const P = G.P, want = Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z) + Math.sin(time * 3) * 0.35;
+        this.spin += angDiff(want, this.spin) * damp(10, dt);
+      } else this.spin += (this.phase === 'orbit' ? 34 : this.phase === 'hover' ? 16 : 30) * dt;
       this.squash = Math.max(0, this.squash - dt * 4); this.bonk = Math.max(0, this.bonk - dt * 4);
       const sq = Math.sin(this.squash * Math.PI * 2.5) * this.squash * 0.35;
       mesh.position.copy(this.pos);

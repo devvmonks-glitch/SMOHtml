@@ -17,6 +17,8 @@ export function initAudio() {
   if (ctx.state === 'suspended') ctx.resume();
 }
 export const isMuted = () => muted;
+// For the music module: the shared context, master bus and noise buffer (null until started).
+export const audioCtx = () => (ctx ? { ctx, master, noise: noiseBuf } : null);
 export function setMuted(m) {
   muted = m;
   if (master) master.gain.value = m ? 0 : 0.5;
@@ -81,6 +83,9 @@ export const sfx = {
   },
   moonAppear() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, 0.12, 'sine', 0.08, i * 0.06)); },
   tick(hi) { const f = hi ? 1400 : 1000; tone(f, f, 0.05, 'square', 0.04); },
+  splash(big) { noise(big ? 0.6 : 0.4, 2400, 400, big ? 0.35 : 0.22, 0.8); tone(300, 120, 0.2, 'sine', 0.06); },
+  stroke() { noise(0.25, 900, 300, 0.1, 1.2); },
+  chomp() { noise(0.2, 300, 120, 0.4, 1); tone(90, 50, 0.25, 'square', 0.1); },
   zap() { noise(0.25, 3000, 6000, 0.06, 5); tone(80, 160, 0.3, 'sawtooth', 0.04); },
   stack() { tone(600, 900, 0.1, 'square', 0.05); },
   hop() { tone(250, 500, 0.08, 'triangle', 0.06); },

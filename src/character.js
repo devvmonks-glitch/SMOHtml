@@ -42,7 +42,7 @@ export function makeHat(eyes = true) {
 }
 
 export class Character {
-  constructor() {
+  constructor(opts = {}) {
     const suit = std(0x22b8a4, { roughness: 0.62 }), belly = std(0xc6f5ea, { roughness: 0.65 });
     const glove = std(0xffffff, { roughness: 0.4 }), shoe = std(0x2b3a67, { roughness: 0.32 });
     const white = std(0xffffff, { roughness: 0.18 }), ink = std(0x14203a, { roughness: 0.2 }), cheek = std(0xff8fa3, { roughness: 0.8 });
@@ -99,7 +99,7 @@ export class Character {
       swapIn(this.legs[k].hip, 'thigh'); swapIn(this.legs[k].kn, 'shin'); swapIn(this.legs[k].ft, 'shoe');
     }
 
-    const rig = heroRig();
+    const rig = opts.rig || heroRig();
     if (rig) this.useRig(rig, body, hips, head);
 
     this.cur = { ...REST }; this.tgt = { ...REST };
@@ -147,7 +147,7 @@ export class Character {
     this.squashG.scale.set(1 + s * 0.45, 1 - s, 1 + s * 0.45);
     if (this.bones) {
       this.pose('spine', c.spine, 0, 0);
-      this.pose('neck', c.headX, c.headY, 0);
+      this.pose('neck', c.headX + (this.look ? this.look.x : 0), c.headY + (this.look ? this.look.y : 0), 0);
       this.pose('shoulderL', -c.lArmX, 0, c.lArmZ); this.pose('elbowL', -c.lElbow, 0, 0);
       this.pose('shoulderR', -c.rArmX, 0, -c.rArmZ); this.pose('elbowR', -c.rElbow, 0, 0);
       this.pose('thighL', -c.lLegX, 0, c.lLegZ); this.pose('kneeL', c.lKnee, 0, 0); this.pose('footL', (c.lLegX - c.lKnee) * 0.8, 0, 0);
@@ -155,7 +155,7 @@ export class Character {
       return;
     }
     this.spine.rotation.x = c.spine;
-    this.head.rotation.set(c.headX, c.headY, 0);
+    this.head.rotation.set(c.headX + (this.look ? this.look.x : 0), c.headY + (this.look ? this.look.y : 0), 0);
     A.l.sh.rotation.set(-c.lArmX, 0, c.lArmZ); A.l.el.rotation.x = -c.lElbow;
     A.r.sh.rotation.set(-c.rArmX, 0, -c.rArmZ); A.r.el.rotation.x = -c.rElbow;
     L.l.hip.rotation.set(-c.lLegX, 0, c.lLegZ); L.l.kn.rotation.x = c.lKnee; L.l.ft.rotation.x = (c.lLegX - c.lKnee) * 0.8;
@@ -268,6 +268,23 @@ export class Character {
         T.headX = -0.1; T.y = 0.04; rate = 20;
         break;
       }
+      case 'swim': {
+        // Front crawl at the surface: alternating arms, fluttering legs, head up.
+        this.swimPh = (this.swimPh || 0) + dt * (4 + hs * 0.8);
+        const a = Math.sin(this.swimPh), b = Math.cos(this.swimPh);
+        T.pitch = 1.1; T.y = -0.05; T.headX = -1.0; T.spine = -0.1;
+        T.lArmX = 1.6 + a * 1.4; T.rArmX = 1.6 - a * 1.4; T.lArmZ = T.rArmZ = 0.35; T.lElbow = T.rElbow = 0.5 + Math.max(0, b) * 0.6;
+        T.lLegX = -0.1 + a * 0.35; T.rLegX = -0.1 - a * 0.35; T.lKnee = T.rKnee = 0.3; rate = 14;
+        break;
+      }
+      case 'underwater': {
+        // Breaststroke: sweep the arms out and back, frog-kick the legs.
+        const k = clamp((P.strokeT || 0) / 0.7, 0, 1), sweep = Math.sin(k * PI);
+        T.pitch = 0.5 + clamp(-P.vel.y * 0.12, -0.5, 0.6); T.headX = -0.5;
+        T.lArmX = T.rArmX = lerp(2.6, 0.6, k); T.lArmZ = T.rArmZ = 0.3 + sweep * 1.1; T.lElbow = T.rElbow = 0.3 + sweep * 0.5;
+        T.lLegX = T.rLegX = 0.6 * (1 - sweep); T.lKnee = T.rKnee = 1.4 * (1 - sweep) + 0.2; T.lLegZ = T.rLegZ = 0.25 * sweep; rate = 12;
+        break;
+      }
       case 'longjump':
         T.pitch = 1.2; T.y = 0.1; T.lArmX = T.rArmX = 2.9; T.lArmZ = T.rArmZ = 0.25; T.lElbow = T.rElbow = 0.15;
         T.lLegX = -0.2; T.rLegX = -0.45; T.lKnee = 0.55; T.rKnee = 0.3; T.headX = -0.9; rate = 16;
@@ -370,6 +387,18 @@ export class Character {
     this.hatPop = Math.max(0, this.hatPop - dt * 3.5);
     const hp = this.hatPop;
     this.hat.scale.set(0.78 * (1 + Math.sin(hp * PI * 3) * hp * 0.35), 0.78 * (1 - Math.sin(hp * PI * 3) * hp * 0.3), 0.78 * (1 + Math.sin(hp * PI * 3) * hp * 0.35));
+
+    // Glance at whatever is interesting nearby (main.js sets P.lookAt).
+    let lookY = 0, lookX = 0;
+    if (P.lookAt && ['ground', 'crouch', 'air', 'launch', 'ledge', 'wall'].includes(s)) {
+      const dx = P.lookAt.x - P.pos.x, dz = P.lookAt.z - P.pos.z, dy = P.lookAt.y - (P.pos.y + 1.3);
+      lookY = clamp(angDiff(Math.atan2(dx, dz), this.yaw), -1.1, 1.1);
+      lookX = clamp(-Math.atan2(dy, Math.hypot(dx, dz)), -0.6, 0.5);
+      if (Math.abs(angDiff(Math.atan2(dx, dz), this.yaw)) > 2.2) lookY = lookX = 0; // behind us: ignore
+    }
+    this.look = this.look || { y: 0, x: 0 };
+    this.look.y += (lookY * 0.75 - this.look.y) * damp(6, dt); this.look.x += (lookX * 0.6 - this.look.x) * damp(6, dt);
+    this.eyes.forEach((e, i) => { e.rotation.y = (i ? 0.25 : -0.25) + this.look.y * 0.35; e.rotation.x = this.look.x * 0.4; });
 
     this.yaw += angDiff(P.facing, this.yaw) * damp(s === 'ground' ? 26 : 40, dt);
     this.root.rotation.y = this.yaw;

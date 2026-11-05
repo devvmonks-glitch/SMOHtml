@@ -11,7 +11,8 @@ const LEDGE_IN = new Set(['air', 'backflip', 'sideflip', 'capbounce', 'gpjump', 
 // States a stick spin can turn into a twirl from.
 const TWIRL_IN = new Set(['air', 'backflip', 'sideflip', 'capbounce', 'gpjump', 'launch', 'longjump']);
 export const BOUNCE = new Set(['air', 'longjump', 'backflip', 'sideflip', 'dive', 'gpjump', 'capbounce', 'launch', 'twirl', 'spinjump']);
-const SPECIAL = new Set(['capture', 'pipe', 'moonGet', 'ledge', 'climb']);
+const SPECIAL = new Set(['capture', 'pipe', 'moonGet', 'ledge', 'climb', 'swim', 'underwater', 'flat']);
+const SWIM = new Set(['swim', 'underwater']);
 export const isGround = s => GROUND.has(s);
 
 export function createPlayer(pos, facing) {
@@ -105,7 +106,8 @@ export function createPlayerSystem(G) {
     if (P.capture) endCapture(true);
     const s = to || G.spawn;
     P.pos.copy(s.pos); P.vel.set(0, 0, 0); P.facing = s.facing; setState('air');
-    P.R = PHYS.R; P.H = PHYS.H; P.ledge = null; P.pipe = null; P.invuln = 0;
+    P.R = PHYS.R; P.H = PHYS.H; P.ledge = null; P.pipe = null; P.invuln = 0; P.water = null;
+    if (G.flat) G.flat.exit(false);
     G.cap.reset(); G.camRig.snap(s.facing + PI);
   }
 
@@ -408,6 +410,51 @@ export function createPlayerSystem(G) {
     }
   }
 
+  // ---------- water ----------
+  // 'swim' floats at the surface (head above water); 'underwater' sinks slowly and strokes.
+  function enterWater(w) {
+    const hard = P.state === 'gpFall' || P.vel.y < -12;
+    P.water = w; P.vel.y *= hard ? 0.25 : 0.4; P.ledge = null;
+    setState(P.pos.y + 1.35 > w.surface && !hard ? 'swim' : 'underwater');
+    P.capThrown = false; P.diveUsed = false; P.twirlUsed = false;
+    G.fx.ring(P.pos.x, w.surface - 0.04, P.pos.z, hard ? 3 : 2, 0xe6f6ff, 0.5);
+    G.fx.burst(P.pos.x, w.surface, P.pos.z, hard ? 22 : 12, 4, 0xd8f0ff, 0.12, 0.6, 9);
+    G.sfx.splash(hard);
+  }
+  function swimLogic(h) {
+    const W = G.W, w = P.water, under = P.state === 'underwater';
+    const sp = under ? 4.2 : 4.8, k = 1 - Math.exp(-3 * h);
+    const tx = W ? W.x * sp * W.mag : 0, tz = W ? W.z * sp * W.mag : 0;
+    P.vel.x += (tx - P.vel.x) * k; P.vel.z += (tz - P.vel.z) * k;
+    if (W) turnToward(Math.atan2(W.x, W.z), 5, h);
+    P.strokeT = (P.strokeT || 0) + h;
+    if (!under) {
+      // Bob at the surface on a soft spring.
+      P.vel.y += ((w.surface - 1.25) - P.pos.y) * 40 * h - P.vel.y * 7 * h;
+      if (P.jumpBuf > 0) {
+        P.jumpBuf = 0; P.vel.y = 11.5; P.water = null; setState('air'); P.variable = true;
+        G.sfx.splash(false); G.fx.burst(P.pos.x, w.surface, P.pos.z, 10, 3, 0xd8f0ff, 0.1, 0.5, 9);
+        return;
+      }
+      if (P.crouchBuf > 0) { P.crouchBuf = 0; setState('underwater'); P.vel.y = -5; }
+    } else {
+      P.vel.y -= (inp.crouch ? 14 : 3.5) * h;
+      P.vel.y *= Math.exp(-1.6 * h);
+      P.vel.y = Math.max(P.vel.y, inp.crouch ? -7 : -3);
+      if (P.jumpBuf > 0) {
+        P.jumpBuf = 0; P.strokeT = 0;
+        P.vel.y = Math.min(P.vel.y + 5.5, 6);
+        const f = dirOf(P.facing); P.vel.x += f.x * 3; P.vel.z += f.z * 3;
+        G.sfx.stroke();
+      }
+      if (Math.random() < h * 6) G.fx.spawn(P.pos.x, P.pos.y + 1.4, P.pos.z, 0, 2.2, 0, 1.0, 0.07, 0.04, 0xe6f6ff, -1, 0.5);
+      if (P.pos.y + 1.35 > w.surface && P.vel.y > 0) setState('swim');
+    }
+    moveBody(P, G.world, h, false);
+    P.onGround = false;
+    if (!G.world.waterAt(P.pos.x, P.pos.y + 0.9, P.pos.z)) { P.water = null; setState('air'); P.variable = false; }
+  }
+
   // ---------- integration ----------
   function land(impact) {
     const s = P.state, gs = P.ground;
@@ -488,7 +535,11 @@ export function createPlayerSystem(G) {
       case 'moonGet': if (P.t > 2.1) setState(P.onGround ? 'ground' : 'air'); break;
       case 'ledge': ledgeLogic(h); break;
       case 'climb': climbLogic(); break;
+      case 'swim': case 'underwater': swimLogic(h); break;
+      case 'flat': G.flat.step(h); break;
       default:
+        if (P.state !== 'hurt' && G.flat && G.flat.tryEnter()) break;
+        { const w = G.world.waterAt(P.pos.x, P.pos.y + 0.9, P.pos.z); if (w) { enterWater(w); break; } }
         if (GROUND.has(P.state)) groundLogic(h); else airLogic(h);
         if (!SPECIAL.has(P.state)) integrate(h);
     }

@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { worldUV, themeMat } from './materials.js';
 import { decorate } from './decor.js';
 import { PI, TAU } from './util.js';
-import { Coin, Moon, Flower, Spring, QBlock, Brick, Stake, PSwitch, Checkpoint, Pipe, Mover, Spinner, Sign, Cloud } from './objects.js';
-import { Frog, Goomba, Goombette, Pylon, wireMesh } from './captures.js';
+import { Coin, Moon, Flower, Spring, QBlock, Brick, Stake, PSwitch, Checkpoint, Pipe, Mover, Spinner, Sign, Cloud, Boulder } from './objects.js';
+import { Frog, Goomba, Goombette, Pylon, ChainChomp, wireMesh } from './captures.js';
 
 const C = {
   floor: 0xc9ced6, wall: 0xe8ebf0, white: 0xf4f1ea, orange: 0xff9a52, yellow: 0xffd166, pink: 0xff7fb4,
@@ -54,6 +54,7 @@ function zone(G, x, z, w, d, color) {
   const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: tint, map: themeMat('path').map, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }));
   m.position.set(x, 0.006, z); m.receiveShadow = true;
   G.scene.add(m);
+  G.zones.push({ x, z, w, d });
 }
 
 export function buildLevel(G) {
@@ -207,6 +208,32 @@ export function buildLevel(G) {
   coinLine(G, [46, 7, 20], [51, 7, 20], 3);
   new Sign(G, 33, 0, 16.5, -PI / 4, 'PLATFORMS', ['Spring up, then ride the', 'mover, spinner and lift.'], '#7fc4ff');
 
+  // ---------- far west: 8-bit wall (built in flat.js) ----------
+  zone(G, -59.5, 16, 7, 26, C.orange);
+  new Sign(G, -56, 0, 30.5, -PI / 2.2, '8-BIT WALL', ['Walk into the green pipe', 'to become pixel art!'], '#ff9a52');
+
+  // ---------- west: chain chomp ----------
+  zone(G, -49, 34, 14, 18, C.grey);
+  new ChainChomp(G, -50, 30, 5.5);
+  const chompMoon = new Moon(G, -50, 1.3, 41.5, 'Chomp Smash', { hidden: true, color: MOON.purple });
+  new Boulder(G, -50, 41.5, 2.6, chompMoon);
+  new Boulder(G, -58.5, 30, 2.2);
+  new Sign(G, -42.5, 0, 26, -PI / 3, 'CHAIN CHOMP', ['Capture it, pull away from the', 'stake, then let go to launch!'], '#aab2c0');
+
+  // ---------- south-east: swimming pool ----------
+  zone(G, 30, 52, 18, 16, C.blue);
+  block(G, 34, 0, 45.5, 14, 3.4, 1, C.grey); block(G, 34, 0, 58.5, 14, 3.4, 1, C.grey);
+  block(G, 27.5, 0, 52, 1, 3.4, 12, C.grey); block(G, 40.5, 0, 52, 1, 3.4, 12, C.grey);
+  block(G, 25.5, 0, 55.5, 2, 1.1, 2, C.white); block(G, 25.5, 0, 53, 2, 2.2, 2, C.white);
+  G.world.water(28, 40, 0, 3.0, 46, 58);
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x4aa3d6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+  const water = new THREE.Mesh(new THREE.BoxGeometry(12, 3.0, 12), waterMat); water.position.set(34, 1.5, 52); water.userData.noPaint = true; G.scene.add(water);
+  const surf = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshStandardMaterial({ color: 0x9fd8f2, roughness: 0.1, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
+  surf.rotation.x = -PI / 2; surf.position.set(34, 2.99, 52); G.scene.add(surf);
+  new Moon(G, 34, 0.9, 52, 'Pool Dive', { color: MOON.cyan });
+  coinRing(G, 34, 1.4, 52, 3.4, 8);
+  new Sign(G, 23.5, 0, 57.5, PI / 2.4, 'SWIMMING POOL', ['Jump in. Crouch to dive,', 'Jump to stroke. Moon below!'], '#7fc4ff');
+
   // ---------- south: roll ramp ----------
   W.ramp(-18, -10, 42, 58, 'z', 1, 0, 6);
   let rampGeo = new THREE.BufferGeometry();
@@ -221,13 +248,58 @@ export function buildLevel(G) {
   coinLine(G, [-14, 1, 44], [-14, 5.5, 56], 7);
   new Sign(G, -6.5, 0, 40, -PI / 5, 'ROLL RAMP', ['Climb up, then hold Crouch', 'and press Cap to roll down.'], '#ff9a52');
 
+
+  // ---------- sky island: a small real course 40m up, beyond the north wall ----------
+  const Y = 40;
+  const isle = (x, z, sx, sz, top, color = C.green, depth = 3) => {
+    const s = block(G, x, top - depth, z, sx, depth, sz, color);
+    // A rocky underside so it reads as floating.
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(Math.min(sx, sz) * 0.62, Math.min(sx, sz) * 1.1, 9), themeMat('dirt'));
+    cone.rotation.x = PI; cone.position.set(x, top - depth - Math.min(sx, sz) * 0.55, z); cone.castShadow = true; G.scene.add(cone);
+    return s;
+  };
+  isle(0, -120, 12, 12, Y);
+  const skyPipe = new Pipe(G, 0, Y, -116, 1.0);
+  const plazaSkyPipe = new Pipe(G, -3, 0, 16, 1.3);
+  plazaSkyPipe.link = skyPipe; skyPipe.link = plazaSkyPipe;
+  const skyFlag = new Checkpoint(G, 3.5, Y, -116, 'Sky Island', PI);
+  skyFlag.island = true;
+  new Sign(G, -3.5, Y, -116.5, 0, 'SKY ISLAND', ['A real course: use everything', 'you learned. Grand Moon ahead!'], '#ffd166');
+  // Stepping stones.
+  for (const [x, z] of [[0, -129], [2.5, -133], [-0.5, -137]]) { isle(x, z, 2.6, 2.6, Y, C.white, 1.2); new Coin(G, x, Y + 0.9, z); }
+  // Goomba meadow.
+  isle(0, -145, 10, 7, Y + 1);
+  const skyPen = { x: 0, z: -145, r: 2.6 };
+  new Goomba(G, -2, Y + 1, -145, skyPen); new Goomba(G, 2, Y + 1, -144, skyPen);
+  coinLine(G, [-3.5, Y + 2, -147], [3.5, Y + 2, -147], 5);
+  // Spring up to the next island, then a moving platform across.
+  new Spring(G, 4, Y + 1, -147.5, 21);
+  isle(6, -153, 6, 6, Y + 4, C.orange, 2);
+  new Mover(G, new THREE.Vector3(11.5, Y + 3.75, -153), new THREE.Vector3(18.5, Y + 3.75, -153), { x: 3, y: 0.5, z: 3 }, 3.4, C.yellow);
+  isle(24, -153, 6, 6, Y + 4, C.green, 4);
+  coinArc(G, [24, Y + 5, -156], [24, Y + 5, -163], 4, 1.2);
+  // Long-jump gap to the chimney island.
+  isle(24, -166.5, 7, 6, Y + 4, C.green, 4);
+  block(G, 21.6, Y + 4, -167.5, 1.4, 10, 4, C.grey);
+  block(G, 26.4, Y + 4, -167.5, 1.4, 10, 4, C.grey);
+  coinLine(G, [24, Y + 6, -167.5], [24, Y + 12, -167.5], 4);
+  // Summit beside the chimney top, with the Grand Moon.
+  isle(30.5, -167.5, 4.6, 4.6, Y + 14, C.white, 1.2);
+  const grand = new Moon(G, 30.5, Y + 15.6, -167.5, 'Grand Moon', { color: 0xffe066 });
+  grand.group.scale.setScalar(1.6); grand.grand = true;
+  new Sign(G, 27, Y + 4, -161, PI, 'LONG JUMP, THEN CLIMB', ['Long jump the gap, then', 'wall jump up the chimney.'], '#ff9a52');
+  G.islandStart = { pos: new THREE.Vector3(0, Y, -121.5), facing: PI };
+
   decorate(G);
 
   // ---------- warp list ----------
   G.stations = [
-    ['Plaza', 0, 0, 10, PI], ['Jump chain', -12.5, 0, -11, PI], ['Long jump', 4, 0, -5, PI], ['Backflip', 18, 0, -10.5, PI],
-    ['P switch', 14, 0, 11, PI], ['Wall jump', -23, 0, 0, -PI / 2], ['Ledge grab', -30, 0, -8, PI], ['Warp pipe', -14, 0, 18, PI],
-    ['Frog', -17, 0, 20, -PI / 4], ['Goomba tower', 0, 0, 24, 0], ['Spark pylon', 17, 0, 23, PI / 3], ['Cap jump', 24, 0, 5, 0],
-    ['Jump flowers', 24, 0, -4, PI / 2], ['Platforms', 32, 0, 20, PI / 2], ['Roll ramp', -14, 0, 36, 0],
-  ].map(([name, x, y, z, f]) => ({ name, pos: new THREE.Vector3(x, y, z), facing: f }));
+    ['Plaza', 0, 0, 10, PI], ['Jump chain', -12.5, 0, -11, PI, 'Triple Jump Tier'], ['Long jump', 4, 0, -5, PI, 'Long Jump Gap'],
+    ['Backflip', 18, 0, -10.5, PI, 'Backflip Pillar'], ['P switch', 14, 0, 11, PI, 'Timed Staircase'],
+    ['Wall jump', -23, 0, 0, -PI / 2, 'Chimney Climb'], ['Ledge grab', -30, 0, -8, PI, 'Ledge Ladder'],
+    ['Warp pipe', -14, 0, 18, PI, 'Pipe Dream Lookout'], ['Frog', -17, 0, 20, -PI / 4, 'Frog Leap'], ['Goomba tower', 0, 0, 24, 0],
+    ['Spark pylon', 17, 0, 23, PI / 3, 'Electric Express'], ['Cap jump', 24, 0, 5, 0, 'Cap Jump Float'],
+    ['Jump flowers', 24, 0, -4, PI / 2, 'Flower Garden Summit'], ['Platforms', 32, 0, 20, PI / 2, 'Platform Hopper'], ['Roll ramp', -14, 0, 36, 0],
+    ['Swimming pool', 22.5, 0, 53, PI / 2, 'Pool Dive'], ['Chain Chomp', -43, 0, 30, -PI / 2], ['8-bit wall', -57, 0, 27.25, -PI / 2], ['Sky island', 0, 40, -121.5, PI, 'Grand Moon'],
+  ].map(([name, x, y, z, f, moon]) => ({ name, pos: new THREE.Vector3(x, y, z), facing: f, moon }));
 }
