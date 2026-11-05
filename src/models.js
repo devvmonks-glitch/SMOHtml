@@ -23,7 +23,15 @@ export async function loadModels() {
         o.material.emissiveIntensity = 0.4;
       }
     });
-    for (const c of gltf.scene.children) parts[c.name] = c;
+    // Compression (KHR_mesh_quantization) stores each model's dequantization as its node's
+    // own position and scale, so wrap every model: callers move and scale the wrapper and
+    // never overwrite that transform. The rig is used as-is (its skin carries the scale).
+    for (const c of gltf.scene.children.slice()) {
+      if (c.name === 'heroRig') { parts[c.name] = c; continue; }
+      const wrap = new THREE.Group();
+      wrap.name = c.name; wrap.add(c);
+      parts[wrap.name] = wrap;
+    }
     // Remember the bind pose so copies of the rig can start from it, not from a live pose.
     if (parts.heroRig) parts.heroRig.traverse((o) => { if (o.isBone) o.userData.rest = o.quaternion.toArray(); });
   } catch (e) {
