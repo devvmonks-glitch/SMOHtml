@@ -14,8 +14,8 @@ const bark = std(0x7a5232, { roughness: 0.95 });
 
 function add(G, mesh, cast = true) { mesh.castShadow = cast; mesh.receiveShadow = true; G.scene.add(mesh); return mesh; }
 
-export function tree(G, x, z, s = 1) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rnd(0, TAU); G.scene.add(g);
+export function tree(G, x, z, s = 1, y = 0) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rnd(0, TAU); G.scene.add(g);
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.32 * s, 2.4 * s, 10), bark);
   trunk.position.y = 1.2 * s; trunk.castShadow = true; g.add(trunk);
   const n = 4 + Math.floor(rnd(0, 3));
@@ -26,35 +26,35 @@ export function tree(G, x, z, s = 1) {
     m.position.set(Math.cos(a) * r, (i === 0 ? 3.3 : rnd(2.5, 3.2)) * s, Math.sin(a) * r);
     m.scale.set(k, k * 0.85, k); m.castShadow = true; m.receiveShadow = true; g.add(m);
   }
-  G.world.cyl(x, z, 0.35 * s, 0, 2.6 * s, { noLedge: true });
+  G.world.cyl(x, z, 0.35 * s, y, y + 2.6 * s, { noLedge: true });
 }
 
-export function bush(G, x, z, s = 1) {
+export function bush(G, x, z, s = 1, y = 0) {
   for (let i = 0; i < 3; i++) {
     const m = add(G, new THREE.Mesh(blob, leafMats[(i + 1) % leafMats.length]));
     const k = s * rnd(0.55, 0.8);
-    m.position.set(x + rnd(-0.5, 0.5) * s, k * 0.6, z + rnd(-0.5, 0.5) * s); m.scale.set(k, k * 0.8, k);
+    m.position.set(x + rnd(-0.5, 0.5) * s, y + k * 0.6, z + rnd(-0.5, 0.5) * s); m.scale.set(k, k * 0.8, k);
   }
-  G.world.cyl(x, z, 0.7 * s, 0, 0.9 * s, { noLedge: true, noWall: true });
+  G.world.cyl(x, z, 0.7 * s, y, y + 0.9 * s, { noLedge: true, noWall: true });
 }
 
 const petalGeo = new THREE.SphereGeometry(0.09, 8, 6), stemGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.35, 4);
 const petalMats = [0xfff4d6, 0xffc0d8, 0xffdd6e, 0xc9b6ff, 0xff9e7a].map((c) => std(c, { roughness: 0.7 }));
 const stemMat = std(0x5f9f45, { roughness: 0.9 });
 for (const m of [...petalMats, stemMat]) m.userData.wind = 0.25;
-export function flowers(G, x, z, n = 14, r = 1.6) {
+export function flowers(G, x, z, n = 14, r = 1.6, y = 0) {
   for (let i = 0; i < n; i++) {
     const a = rnd(0, TAU), d = Math.sqrt(rnd()) * r, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
-    const stem = add(G, new THREE.Mesh(stemGeo, stemMat), false); stem.position.set(px, 0.17, pz);
-    const p = add(G, new THREE.Mesh(petalGeo, petalMats[i % petalMats.length]), false); p.position.set(px, 0.36, pz); p.scale.set(1.3, 0.6, 1.3);
+    const stem = add(G, new THREE.Mesh(stemGeo, stemMat), false); stem.position.set(px, y + 0.17, pz);
+    const p = add(G, new THREE.Mesh(petalGeo, petalMats[i % petalMats.length]), false); p.position.set(px, y + 0.36, pz); p.scale.set(1.3, 0.6, 1.3);
   }
 }
 
 const rockGeo = new THREE.DodecahedronGeometry(1, 0), rockMat = std(0xb3aa9c, { roughness: 0.95, flatShading: true });
-export function rock(G, x, z, s = 1) {
+export function rock(G, x, z, s = 1, y = 0) {
   const m = add(G, new THREE.Mesh(rockGeo, rockMat));
-  m.position.set(x, s * 0.35, z); m.scale.set(s * rnd(0.9, 1.3), s * rnd(0.5, 0.8), s * rnd(0.9, 1.2)); m.rotation.set(rnd(0, 1), rnd(0, TAU), rnd(0, 1));
-  G.world.cyl(x, z, s * 0.9, 0, s * 0.7, { noLedge: true });
+  m.position.set(x, y + s * 0.35, z); m.scale.set(s * rnd(0.9, 1.3), s * rnd(0.5, 0.8), s * rnd(0.9, 1.2)); m.rotation.set(rnd(0, 1), rnd(0, TAU), rnd(0, 1));
+  G.world.cyl(x, z, s * 0.9, y, y + s * 0.7, { noLedge: true });
 }
 
 const lampGlow = new THREE.MeshStandardMaterial({ color: 0xffe2a0, emissive: 0xffc860, emissiveIntensity: 1.4, roughness: 0.4 });
@@ -79,8 +79,9 @@ export function fence(G, x0, z0, x1, z1) {
   }
 }
 
-// Grass tufts: three crossed blades, instanced across open grass, avoiding pads and blocks.
-function grassTufts(G, count) {
+// Grass tufts: three crossed blades, instanced wherever place() finds open grass
+// (it returns [x, y, z] or null).
+export function grassTufts(G, count, place) {
   const blade = (a) => {
     const c = Math.cos(a) * 0.07, s = Math.sin(a) * 0.07;
     return [-c, 0, -s, c, 0, s, 0, 0.34, 0];
@@ -96,15 +97,12 @@ function grassTufts(G, count) {
   mat.userData.wind = 0.18; mat.userData.grass = true;
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  const blocked = (x, z) => G.zones.some((r) => Math.abs(x - r.x) < r.w / 2 + 0.3 && Math.abs(z - r.z) < r.d / 2 + 0.3) ||
-    G.world.solids.some((s) => s.max.y > 0.05 && s.min.y < 0.3 && s.max.x - s.min.x < 100 &&
-      x > s.min.x - 0.2 && x < s.max.x + 0.2 && z > s.min.z - 0.2 && z < s.max.z + 0.2);
   let n = 0;
   for (let tries = 0; n < count && tries < count * 6; tries++) {
-    const x = rnd(-76, 76), z = rnd(-76, 76);
-    if (blocked(x, z)) continue;
+    const at = place();
+    if (!at) continue;
     const k = rnd(0.7, 1.4);
-    m.compose(p.set(x, 0, z), q.setFromAxisAngle(up, rnd(0, TAU)), sc.set(k, k * rnd(0.8, 1.3), k));
+    m.compose(p.set(at[0], at[1], at[2]), q.setFromAxisAngle(up, rnd(0, TAU)), sc.set(k, k * rnd(0.8, 1.3), k));
     mesh.setMatrixAt(n++, m);
   }
   mesh.count = n; mesh.receiveShadow = true; mesh.frustumCulled = false;
@@ -139,8 +137,19 @@ export class Footprints {
   }
 }
 
+// True if a tuft at (x, y, z) would poke through a pad or something standing on the ground.
+export function tuftBlocked(G, x, y, z, ground = null) {
+  return G.zones.some((r) => Math.abs(x - r.x) < r.w / 2 + 0.3 && Math.abs(z - r.z) < r.d / 2 + 0.3) ||
+    G.world.solids.some((s) => s !== ground && s.max.y > y + 0.05 && s.min.y < y + 0.3 && s.max.x - s.min.x < 100 &&
+      x > s.min.x - 0.2 && x < s.max.x + 0.2 && z > s.min.z - 0.2 && z < s.max.z + 0.2);
+}
+export const rand = rnd;
+
 export function decorate(G) {
-  grassTufts(G, G.low ? 750 : 2600);
+  grassTufts(G, G.low ? 750 : 2600, () => {
+    const x = rnd(-76, 76), z = rnd(-76, 76);
+    return tuftBlocked(G, x, 0, z) ? null : [x, 0, z];
+  });
   // A ring of trees just inside the walls, with bushes in between.
   for (let i = 0; i < 44; i++) {
     const side = i % 4, t = (Math.floor(i / 4) + 0.5) / 11 * 2 - 1, inset = rnd(70, 76);

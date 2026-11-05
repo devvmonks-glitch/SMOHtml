@@ -15,6 +15,13 @@ export function createHud() {
       banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show');
       clearTimeout(bannerTO); bannerTO = setTimeout(() => { banner.hidden = true; }, 2700);
     },
+    // A title card when you arrive somewhere new.
+    kingdom(kicker, name, sub) {
+      const el = $('kingdomCard');
+      $('kcKicker').textContent = kicker; $('kcName').textContent = name; $('kcSub').textContent = sub;
+      el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+      clearTimeout(this.kTO); this.kTO = setTimeout(() => { el.hidden = true; }, 4300);
+    },
     prompt(text) {
       if (text === promptText) return;
       promptText = text; promptEl.hidden = !text; promptEl.textContent = text || '';

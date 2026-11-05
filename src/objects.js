@@ -493,8 +493,8 @@ export class Sign {
 
 // Decorative cloud puffs that drift slowly.
 export class Cloud {
-  constructor(G, x, y, z, s) {
-    this.g = new THREE.Group(); this.g.position.set(x, y, z); this.speed = 0.4 + Math.random() * 0.4; G.scene.add(this.g);
+  constructor(G, x, y, z, s, cx = 0) {
+    this.cx = cx; this.g = new THREE.Group(); this.g.position.set(x, y, z); this.speed = 0.4 + Math.random() * 0.4; G.scene.add(this.g);
     const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0xffffff, emissiveIntensity: 0.25 });
     for (let i = 0; i < 5; i++) {
       const b = new THREE.Mesh(new THREE.SphereGeometry(s * (0.6 + Math.random() * 0.5), 16, 12), m);
@@ -502,5 +502,5 @@ export class Cloud {
     }
     G.objects.push(this);
   }
-  render(dt) { this.g.position.x += this.speed * dt; if (this.g.position.x > 120) this.g.position.x = -120; }
+  render(dt) { this.g.position.x += this.speed * dt; if (this.g.position.x > this.cx + 120) this.g.position.x = this.cx - 120; }
 }

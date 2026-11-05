@@ -7,11 +7,12 @@ import { audioCtx } from './audio.js';
 
 const BPM = 98, SIXTEENTH = 60 / BPM / 4;
 const PROG = [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]]; // C, Am, F, G (semitones from C4)
+const FALLS_PROG = [[5, 9, 12], [7, 11, 14], [4, 7, 11], [9, 12, 16]]; // F, G, Em, Am: brighter, for Tumble Falls
 const CAPTURE_PROG = [[-3, 0, 3], [-7, -4, 0], [-5, -2, 2], [-8, -5, -1]]; // Am, Fm-ish, Gm, E-ish
 const hz = (semi, oct = 0) => 261.63 * Math.pow(2, semi / 12 + oct);
 
 let ctx = null, out = null, layers = null, noise = null;
-let next = 0, step = 0, enabled = true, intensity = 0, mood = 0, duck = 1;
+let next = 0, step = 0, enabled = true, intensity = 0, mood = 0, duck = 1, falls = false;
 
 function voice(type, freq, t, dur, gainNode, vol, attack = 0.005, cutoff = 0) {
   const o = ctx.createOscillator(), g = ctx.createGain();
@@ -45,7 +46,7 @@ function setup() {
 }
 
 function schedule(t) {
-  const bar = Math.floor(step / 16) % 4, s = step % 16, chord = (mood > 0.5 ? CAPTURE_PROG : PROG)[bar];
+  const bar = Math.floor(step / 16) % 4, s = step % 16, chord = (mood > 0.5 ? CAPTURE_PROG : falls ? FALLS_PROG : PROG)[bar];
   if (s === 0) for (const n of chord) voice('triangle', hz(n), t, SIXTEENTH * 16, layers.pad, 0.05, 0.35, 1400);
   if (s % 4 === 0) voice('sine', hz(chord[0], -2), t, SIXTEENTH * 3, layers.bass, 0.16, 0.01);
   if (s % 4 === 2) voice('sine', hz(chord[0], -1), t, SIXTEENTH * 1.5, layers.bass, 0.06, 0.01);
@@ -63,6 +64,7 @@ export const musicOn = () => enabled;
 export function updateMusic(G, dt) {
   if (!ctx && !setup()) return;
   if (!enabled || ctx.state !== 'running') { next = ctx.currentTime + 0.1; return; }
+  falls = G.region === 'Tumble Falls';
   const P = G.P, moving = G.paused ? 0 : Math.min(1, P.hs / 9.5 + (P.onGround ? 0 : 0.35));
   intensity += (moving - intensity) * Math.min(1, dt * 1.5);
   mood += ((P.state === 'capture' ? 1 : 0) - mood) * Math.min(1, dt * 2);

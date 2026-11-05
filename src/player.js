@@ -398,7 +398,9 @@ export function createPlayerSystem(G) {
     if (pp.phase === 'down') {
       P.pos.y = pp.from.top - smooth(P.t / 0.55) * 1.9;
       if (P.t >= 0.75) {
+        if (pp.to.facing !== undefined) P.facing = pp.to.facing;
         P.pos.set(pp.to.x, pp.to.top - 1.9, pp.to.z); pp.phase = 'up'; P.t = 0;
+        if (pp.to.onArrive) pp.to.onArrive(G);
         G.camRig.snap(P.facing + PI); G.sfx.pipe();
       }
     } else {

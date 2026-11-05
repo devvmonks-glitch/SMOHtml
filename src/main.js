@@ -19,6 +19,7 @@ import { save, setting, setSetting } from './save.js';
 import { updateMusic, setMusic, musicOn } from './music.js';
 import { createTrials } from './trial.js';
 import { createFlat } from './flat.js';
+import { buildKingdom, KX, KINGDOM } from './kingdom.js';
 
 const SPAWN = { pos: new THREE.Vector3(0, 0, 10), facing: PI };
 const STEP = 1 / 120;
@@ -84,6 +85,7 @@ async function start() {
   };
   buildLevel(G);
   G.flat = createFlat(G);
+  buildKingdom(G);
   const prints = new Footprints(G);
   G.trials = createTrials(G);
   paintScene(scene);
@@ -187,11 +189,17 @@ async function start() {
   const moonList = document.getElementById('moonList');
   function refreshMoons() {
     moonList.innerHTML = '';
-    for (const m of G.moons) {
-      const li = document.createElement('li');
-      li.className = m.got ? 'got' : '';
-      li.textContent = (m.got ? '● ' : '○ ') + m.name;
-      moonList.appendChild(li);
+    for (const place of ['Hop Lab', KINGDOM]) {
+      const list = G.moons.filter((m) => (m.kingdom || 'Hop Lab') === place);
+      const head = document.createElement('li'); head.className = 'head';
+      head.textContent = `${place} · ${list.filter((m) => m.got).length} / ${list.length}`;
+      moonList.appendChild(head);
+      for (const m of list) {
+        const li = document.createElement('li');
+        li.className = m.got ? 'got' : '';
+        li.textContent = (m.got ? '● ' : '○ ') + m.name;
+        moonList.appendChild(li);
+      }
     }
     document.getElementById('moonTally').textContent = `${G.moonsGot} of ${G.moons.length} moons · ${G.coins} coins`;
   }
@@ -202,7 +210,12 @@ async function start() {
     b.addEventListener('click', () => { if (b.dataset.gfx !== gfx) { setSetting('gfx', b.dataset.gfx); location.reload(); } });
   }
   const warpList = document.getElementById('warpList');
+  let warpGroup = null;
   for (const s of G.stations) {
+    if ((s.group || 'Hop Lab') !== warpGroup) {
+      warpGroup = s.group || 'Hop Lab';
+      const h = document.createElement('div'); h.className = 'head'; h.textContent = warpGroup; warpList.appendChild(h);
+    }
     const b = document.createElement('button'); b.className = 'warp'; b.textContent = s.name;
     if (s.moon) b.title = 'Time trial: ' + s.moon;
     b.addEventListener('click', () => { G.player.respawn(s); setPaused(false); G.trials.start(s); });
@@ -295,6 +308,17 @@ async function start() {
     sun.position.set(Math.round(t.x) + 20, t.y + 36, Math.round(t.z) + 12); sun.target.position.set(Math.round(t.x), t.y, Math.round(t.z));
     rim.position.set(t.x - 18, t.y + 14, t.z - 22); rim.target.position.copy(t);
     G.hud.prompt(G.paused ? '' : prompt());
+    // Which place you're in: the music changes, and arriving shows a title card.
+    const region = P.pos.x > KX - 100 ? KINGDOM : 'Hop Lab';
+    if (region !== G.region) {
+      if (G.region) {
+        const list = G.moons.filter((m) => (m.kingdom || 'Hop Lab') === region), got = list.filter((m) => m.got).length;
+        G.hud.kingdom(region === KINGDOM ? 'Kingdom of' : 'Back to the', region === KINGDOM ? 'Tumble Falls' : 'Hop Lab', `${got} of ${list.length} Power Moons`);
+      }
+      G.region = region;
+      // Falling or pressing R brings you back somewhere in the place you're in.
+      if ((G.spawn.pos.x > KX - 100) !== (region === KINGDOM)) { G.spawn = region === KINGDOM ? G.fallsSpawn : SPAWN; G.spawnFlag = null; }
+    }
     updateMusic(G, dt);
     // Falling off the sky island puts you back on it rather than dropping you into the room.
     if (!G.paused && P.pos.z < -100 && P.pos.y < 28) G.player.respawn(G.spawnFlag && G.spawnFlag.island ? G.spawn : G.islandStart);

@@ -1,6 +1,6 @@
 # SMOHtml — Hop Lab
 
-A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 19 stations on paved pads among grass, trees and stone walls, plus a short course on a sky island. Each station shows off one move, object or capture, and each one hides a Power Moon.
+A browser prototype of Super Mario Odyssey–style 3D platforming, built with [three.js](https://threejs.org/), with a hand-painted look. You play a little character with a throwable cap in a **dev room** dressed as a garden: 19 stations on paved pads among grass, trees and stone walls, plus a short course on a sky island. Each station shows off one move, object or capture, and each one hides a Power Moon. A pipe in the plaza leads to **Tumble Falls**, a small kingdom with 12 more moons to find.
 
 **Play it in your browser:** https://devvmonks-glitch.github.io/SMOHtml/
 
@@ -28,6 +28,18 @@ A browser prototype of Super Mario Odyssey–style 3D platforming, built with [t
 | Chain Chomp | Capture it, pull back against its chain, and launch it to smash a boulder |
 | 8-bit wall | Walk into the pipe at its foot to become pixel art and run a 2D course along the wall |
 | Sky island | A plaza pipe leads to a floating course that uses everything, with a Grand Moon at the top |
+
+## Tumble Falls
+
+A small kingdom in the spirit of SMO's first one: a grassy valley under a tall waterfall, floating over a sea of clouds. The green pipe beside the plaza's Tumble Falls sign takes you there and back. Its 12 moons are hidden rather than labelled, and each one asks for a different move or capture:
+
+- behind the waterfall, and at the bottom of the plunge pool under it
+- at the top of the falls, up the cliff terraces or by spark pylon to the plateau
+- on top of the old spire, reached by steps, a jump flower and a lift (a Grand Moon)
+- on a pillar only the frog can leap to, and on a rock column at the top of a P switch staircase
+- in a cave sealed by a boulder (the Chain Chomp can help), on a Goomba picnic ledge, inside some ruined bricks, under an old post in the flowers, and across a long jump off the east edge
+
+The Moons and Warp tabs list Tumble Falls separately, and its warps have time trials like the dev room's.
 
 Checkpoint flags are scattered around: touch one (or hit it with your cap) and **R** respawns you there. The menu's **Warp** tab jumps straight to any station.
 
@@ -145,6 +157,7 @@ src/fx.js         particles and shockwave rings
 src/paint.js      painterly shading, painted sky and paper grain
 src/decor.js      trees, bushes, flowers, rocks, lamps, fences, hills, grass tufts and footprints
 src/flat.js       the 8-bit wall section
+src/kingdom.js    Tumble Falls: terrain, rocky cliffs, waterfalls and its moons
 src/trial.js      time trials and ghost replays
 src/music.js      the synthesised soundtrack
 src/save.js       saved progress and settings

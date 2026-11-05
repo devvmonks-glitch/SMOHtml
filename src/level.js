@@ -5,11 +5,11 @@ import { PI, TAU } from './util.js';
 import { Coin, Moon, Flower, Spring, QBlock, Brick, Stake, PSwitch, Checkpoint, Pipe, Mover, Spinner, Sign, Cloud, Boulder } from './objects.js';
 import { Frog, Goomba, Goombette, Pylon, ChainChomp, wireMesh } from './captures.js';
 
-const C = {
+export const C = {
   floor: 0xc9ced6, wall: 0xe8ebf0, white: 0xf4f1ea, orange: 0xff9a52, yellow: 0xffd166, pink: 0xff7fb4,
   purple: 0xa78bfa, blue: 0x7fc4ff, green: 0x8fdc7a, teal: 0x5fd3c4, red: 0xff6b6b, grey: 0xaab2c0,
 };
-const MOON = { gold: 0xffd23f, cyan: 0x5fe0ff, pink: 0xff7fc8, orange: 0xffa03f, green: 0x7dff8a, purple: 0xc49bff, red: 0xff6b6b };
+export const MOON = { gold: 0xffd23f, cyan: 0x5fe0ff, pink: 0xff7fc8, orange: 0xffa03f, green: 0x7dff8a, purple: 0xc49bff, red: 0xff6b6b };
 
 // What each station colour is built from: [top surface, sides, tint for the sides].
 const LOOK = {
@@ -20,7 +20,7 @@ const LOOK = {
 };
 
 // A solid block of painted grass, stone, brick, wood or plaster. y0 is the bottom.
-function block(G, x, y0, z, sx, sy, sz, color, opts = {}) {
+export function block(G, x, y0, z, sx, sy, sz, color, opts = {}) {
   const cy = y0 + sy / 2;
   const s = G.world.box(x, cy, z, sx, sy, sz, opts);
   const geo = worldUV(new THREE.BoxGeometry(sx, sy, sz), x, cy, z);
@@ -34,20 +34,20 @@ function block(G, x, y0, z, sx, sy, sz, color, opts = {}) {
   return s;
 }
 
-function coinLine(G, a, b, n) {
+export function coinLine(G, a, b, n) {
   for (let i = 0; i < n; i++) { const t = n === 1 ? 0 : i / (n - 1); new Coin(G, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t); }
 }
-function coinRing(G, x, y, z, r, n) {
+export function coinRing(G, x, y, z, r, n) {
   for (let i = 0; i < n; i++) { const a = i / n * TAU; new Coin(G, x + Math.cos(a) * r, y, z + Math.sin(a) * r); }
 }
-function coinArc(G, a, b, n, height) {
+export function coinArc(G, a, b, n, height) {
   for (let i = 0; i < n; i++) {
     const t = (i + 1) / (n + 1);
     new Coin(G, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + Math.sin(t * PI) * height, a[2] + (b[2] - a[2]) * t);
   }
 }
 // A paved pad under each station, faintly tinted with the station colour.
-function zone(G, x, z, w, d, color) {
+export function zone(G, x, z, w, d, color) {
   const geo = new THREE.PlaneGeometry(w, d); geo.rotateX(-PI / 2);
   worldUV(geo, x, 0, z);
   const tint = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.72);
@@ -262,6 +262,10 @@ export function buildLevel(G) {
   const skyPipe = new Pipe(G, 0, Y, -116, 1.0);
   const plazaSkyPipe = new Pipe(G, -3, 0, 16, 1.3);
   plazaSkyPipe.link = skyPipe; skyPipe.link = plazaSkyPipe;
+  // The pipe to Tumble Falls (linked up in kingdom.js).
+  G.fallsPipe = new Pipe(G, 3.5, 0, 17, 1.3);
+  G.fallsPipe.facing = PI; G.fallsPipe.onArrive = (G2) => { G2.spawn = { pos: new THREE.Vector3(3.5, 0, 14.5), facing: PI }; G2.spawnFlag = null; };
+  new Sign(G, 6.8, 0, 15.6, PI + PI / 6, 'TUMBLE FALLS', ['A whole kingdom of waterfalls', 'and 12 Power Moons. Hop in!'], '#5fd3c4');
   const skyFlag = new Checkpoint(G, 3.5, Y, -116, 'Sky Island', PI);
   skyFlag.island = true;
   new Sign(G, -3.5, Y, -116.5, 0, 'SKY ISLAND', ['A real course: use everything', 'you learned. Grand Moon ahead!'], '#ffd166');
