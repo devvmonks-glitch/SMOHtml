@@ -92,7 +92,6 @@ npm run watch   # rebuild game.js on every change
 npm run build   # minified game.js plus the single-file hop-lab.html
 ```
 
-Graphics: desktop browsers get ambient occlusion; touch devices skip it. Add `?lq` to the URL to turn it off anywhere.
 
 Add `?debug` to the URL to expose the game state as `window.HL` in the console.
 

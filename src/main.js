@@ -1,9 +1,5 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PI } from './util.js';
 import { World, groundBelow } from './world.js';
 import { FX } from './fx.js';
@@ -29,10 +25,7 @@ async function start() {
 
   const canvas = document.getElementById('c');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  // High quality (ambient occlusion) on desktop; ?lq turns it off.
-  const params = new URLSearchParams(location.search);
-  const hq = !params.has('lq') && !matchMedia('(pointer: coarse)').matches;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, hq ? 1.5 : 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -55,17 +48,7 @@ async function start() {
   const rim = new THREE.DirectionalLight(0xbfe0ff, 1.1);
   scene.add(rim, rim.target);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 400);
-  let composer = null, ao = null;
-  if (hq) {
-    composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    ao = new GTAOPass(scene, camera, 1, 1);
-    ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1.2, scale: 1.1 });
-    ao.blendIntensity = 0.9;
-    composer.addPass(ao);
-    composer.addPass(new OutputPass());
-  }
-  const draw = () => (composer ? composer.render() : renderer.render(scene, camera));
+  const draw = () => renderer.render(scene, camera);
 
   const G = {
     scene, world: new World(), fx: new FX(scene), sfx, hud: createHud(), objects: [], captures: [], moons: [], checkpoints: [],
@@ -139,7 +122,6 @@ async function start() {
   function resize() {
     const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-    if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
   }
   addEventListener('resize', resize); resize();
 
@@ -217,7 +199,7 @@ async function start() {
   if (new URLSearchParams(location.search).has('debug')) {
     // Debug hook used for automated playtesting: ?debug exposes the game context.
     G.renderNow = (dt = 1 / 60) => { G.char.animate(P, dt, G.time, G.camRig.yaw); G.camRig.update(dt, performance.now()); draw(); };
-    G.parts = loadedParts; G.passes = { ao, composer };
+    G.parts = loadedParts;
     window.HL = G;
   }
 }

@@ -273,7 +273,7 @@ def seg_dist(p, a, b):
     return (a + ab * t - p).length
 
 
-AX = 0.34  # shoulder / arm x offset
+AX = 0.33  # shoulder / arm x offset
 
 
 def build_hero():
@@ -306,6 +306,8 @@ def build_hero():
     # Skin: overlapping shapes fused by a voxel remesh, smoothed, then reduced.
     bm = bmesh.new()
     bm_append(bm, sphere(1, 32, 20), xf((0, .93, 0), s=(.235, .25, .21)))
+    # Shoulder yoke: carries the chest out to the arms so they join the body.
+    bm_append(bm, sphere(1, 32, 16), xf((0, 1.04, 0), s=(AX + .03, .1, .14)))
     bm_append(bm, sphere(1, 32, 20), xf((0, .81, .02), s=(.24, .2, .225)))
     bm_append(bm, sphere(1, 32, 20), xf((0, .67, 0), s=(.23, .15, .2)))
     bm_append(bm, capsule(.085, .08), xf((0, 1.22, 0)))

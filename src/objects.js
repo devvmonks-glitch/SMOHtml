@@ -449,7 +449,8 @@ export class Sign {
     const wood = std(0x5b6578, { roughness: 0.6 });
     for (const sx of [-1.05, 1.05]) { const p = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.6, 10), wood)); p.position.set(sx, 0.8, -0.03); g.add(p); }
     const board = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.46), new THREE.MeshStandardMaterial({ map: labelTex(title, lines, accent), roughness: 0.6 }));
-    board.position.y = 1.85; board.castShadow = true; g.add(board);
+    // No shadow: seen through the gap under the board it reads as a floating black box.
+    board.position.y = 1.85; g.add(board);
     const back = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.46), std(0x1d2a44)); back.rotation.y = PI; back.position.set(0, 1.85, -0.01); g.add(back);
   }
 }

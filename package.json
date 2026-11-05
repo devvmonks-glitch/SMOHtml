@@ -1,6 +1,6 @@
 {
   "name": "smohtml",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Super Mario Odyssey-style movement prototype and dev room in three.js",
   "license": "MIT",
